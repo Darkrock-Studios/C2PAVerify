@@ -27,6 +27,13 @@ pick or share a photo in, see whether provenance data is present and whether the
   and needs the JNA aar. It's Android/JVM-only with native binaries; keep it behind the
   `C2paReaderDataSource` interface and wrap its blocking calls on `Dispatchers.IO`.
 
+## Releasing
+- Tag `vX.Y.Z` — CI builds the per-ABI split APKs (versionCode = `abiOffset * 1000 + base`, see
+  `app/build.gradle.kts`) for GitHub/IzzyOnDroid, plus the Play AAB (base versionCode).
+- Changelogs: `fastlane/metadata/android/en-US/changelogs/<base>.txt` for Play, **plus**
+  `<base + 4000>.txt` — F-Droid keys the changelog off the arm64 split's versionCode.
+- F-Droid packaging notes and the build recipe live in `docs/fdroid/`.
+
 ## Architecture rules (enforced; a Konsist test guards them)
 Strict layering, dependencies point **downward only**:
 

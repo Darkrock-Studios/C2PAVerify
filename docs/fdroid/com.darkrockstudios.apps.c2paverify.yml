@@ -1,0 +1,68 @@
+Categories:
+  - Multimedia
+  - Security
+License: MIT
+AuthorName: Adam Brown
+WebSite: https://darkrock.studio/
+SourceCode: https://github.com/Darkrock-Studios/C2PAVerify
+IssueTracker: https://github.com/Darkrock-Studios/C2PAVerify/issues
+Changelog: https://github.com/Darkrock-Studios/C2PAVerify/releases
+
+RepoType: git
+Repo: https://github.com/Darkrock-Studios/C2PAVerify.git
+
+# The app builds one APK per ABI (see the `splits` block in app/build.gradle.kts), so each
+# release needs one build entry per ABI. The versionCode of each split is
+# `abiOffset * 1000 + app-versioncode`, with offsets armeabi-v7a=1, x86=2, x86_64=3,
+# arm64-v8a=4 — hence the ascending 1004/2004/3004/4004 below for versionName 0.2.3.
+#
+# `gradle: yes` selects the build method (`gradle assembleRelease`); `output:` selects which of
+# the four resulting APKs this entry publishes. Paths in `output:` are relative to `subdir`.
+Builds:
+  - versionName: 0.2.3
+    versionCode: 1004
+    commit: v0.2.3
+    subdir: app
+    gradle:
+      - yes
+    output: build/outputs/apk/release/app-armeabi-v7a-release-unsigned.apk
+
+  - versionName: 0.2.3
+    versionCode: 2004
+    commit: v0.2.3
+    subdir: app
+    gradle:
+      - yes
+    output: build/outputs/apk/release/app-x86-release-unsigned.apk
+
+  - versionName: 0.2.3
+    versionCode: 3004
+    commit: v0.2.3
+    subdir: app
+    gradle:
+      - yes
+    output: build/outputs/apk/release/app-x86_64-release-unsigned.apk
+
+  - versionName: 0.2.3
+    versionCode: 4004
+    commit: v0.2.3
+    subdir: app
+    gradle:
+      - yes
+    output: build/outputs/apk/release/app-arm64-v8a-release-unsigned.apk
+
+# versionName/versionCode live in the Gradle version catalog rather than as literals in
+# build.gradle.kts, so fdroidserver cannot parse them out of the build file. Read them from
+# gradle/libs.versions.toml instead, then expand the base versionCode into the four per-ABI
+# codes with VercodeOperation. The generated codes are sorted ascending and zipped onto the
+# last four build entries above, so keep those entries in ABI-offset order.
+AutoUpdateMode: Version v%v
+UpdateCheckMode: Tags ^v[0-9]+\.[0-9]+\.[0-9]+$
+UpdateCheckData: gradle/libs.versions.toml|app-versioncode = "(\d+)"|.|app-version = "([\d.]+)"
+VercodeOperation:
+  - '%c + 1000'
+  - '%c + 2000'
+  - '%c + 3000'
+  - '%c + 4000'
+CurrentVersion: 0.2.3
+CurrentVersionCode: 4004

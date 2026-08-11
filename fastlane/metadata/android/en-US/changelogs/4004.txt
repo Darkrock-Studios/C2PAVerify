@@ -1,0 +1,1 @@
+Smaller download and install size, thanks to per-architecture builds and code shrinking. No changes to how verification works.
