@@ -53,7 +53,7 @@ val dataSourceModule = module {
 	factory { TrustListCacheDataSource(androidContext()) }
 	factoryOf(::TrustListRemoteDataSource)
 	factoryOf(::TrustAnchorParser)
-	factory { ReportRendererDataSource(androidContext()) }
+	factory { ReportRendererDataSource(androidContext(), get()) }
 	factory { PreferencesDataSource(androidContext()) }
 }
 

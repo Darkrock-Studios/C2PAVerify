@@ -167,6 +167,10 @@ dependencies {
 	// Image loading & zoom
 	implementation(libs.coil.compose)
 	implementation(libs.coil.network.ktor3)
+	// Decoders the platform lacks: SVG has no native decoder at all, and animated GIF needs one
+	// registered explicitly or Coil renders only the first frame.
+	implementation(libs.coil.svg)
+	implementation(libs.coil.gif)
 	implementation(libs.telephoto.zoomable.image.coil3)
 
 	// C2PA reading/verification (Android-only native lib via JitPack; needs JNA aar).

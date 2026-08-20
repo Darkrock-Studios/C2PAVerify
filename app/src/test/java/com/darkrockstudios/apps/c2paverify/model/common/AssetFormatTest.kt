@@ -150,6 +150,8 @@ class AssetFormatTest {
 			.forEach { mime ->
 				assertTrue(mime, requireNotNull(AssetFormats.fromMimeType(mime)).isRenderableBy(minSdk))
 			}
+		// Decodable only because coil-svg is registered, not because the platform can.
+		assertTrue(requireNotNull(AssetFormats.fromMimeType("image/svg+xml")).isRenderableBy(minSdk))
 	}
 
 	@Test

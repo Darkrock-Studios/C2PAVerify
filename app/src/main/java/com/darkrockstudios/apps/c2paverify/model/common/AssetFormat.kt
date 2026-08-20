@@ -205,13 +205,16 @@ fun ImageSource.resolveFormat(): AssetFormat? = AssetFormats.resolve(
  *
  * Reading provenance and drawing a preview are independent capabilities. The reader parses TIFF,
  * raw and JPEG XL, which nothing in the app can decode, so those assets are still inspected and
- * simply shown without a preview rather than refused.
+ * simply shown without a preview rather than refused. SVG is decodable only because Coil is
+ * configured with an SVG decoder, so this tracks that configuration rather than the platform alone.
  */
 fun AssetFormat.isRenderableBy(sdkInt: Int): Boolean = when (token) {
 	"image/jpeg", "image/png", "image/webp", "image/gif" -> true
 	// Platform HEIF decoding predates our minSdk; AVIF only arrived later.
 	"image/heic", "image/heif" -> true
 	"image/avif" -> sdkInt >= SDK_AVIF
+	// No platform decoder at any API level; supplied by coil-svg.
+	"image/svg+xml" -> true
 	else -> false
 }
 

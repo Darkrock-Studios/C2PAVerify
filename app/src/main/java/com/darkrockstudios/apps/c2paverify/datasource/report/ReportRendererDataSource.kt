@@ -2,7 +2,6 @@ package com.darkrockstudios.apps.c2paverify.datasource.report
 
 import android.content.Context
 import android.graphics.Bitmap
-import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
@@ -10,6 +9,10 @@ import android.graphics.Path
 import android.graphics.RectF
 import android.graphics.Typeface
 import androidx.core.content.FileProvider
+import coil3.ImageLoader
+import coil3.request.ImageRequest
+import coil3.request.SuccessResult
+import coil3.toBitmap
 import com.darkrockstudios.apps.c2paverify.model.common.ImageSource
 import com.darkrockstudios.apps.c2paverify.model.share.ReportBadgeStyle
 import com.darkrockstudios.apps.c2paverify.model.share.ReportOverlay
@@ -28,7 +31,10 @@ import java.io.IOException
  * Android-only (`android.graphics` + `FileProvider`); isolates that out of the KMP-clean layers.
  * All decoding/encoding runs on [Dispatchers.IO].
  */
-class ReportRendererDataSource(private val context: Context) {
+class ReportRendererDataSource(
+	private val context: Context,
+	private val imageLoader: ImageLoader,
+) {
 
 	suspend fun render(image: ImageSource, overlay: ReportOverlay): String = withContext(Dispatchers.IO) {
 		val photo = decodeScaled(image) ?: throw IOException("Unable to decode image for report")
@@ -45,30 +51,28 @@ class ReportRendererDataSource(private val context: Context) {
 		uri
 	}
 
-	private fun decodeScaled(image: ImageSource): Bitmap? {
-		val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-		decodeInto(image, bounds)
-		val opts = BitmapFactory.Options().apply {
-			inSampleSize = sampleSizeFor(bounds.outWidth, bounds.outHeight)
-			inPreferredConfig = Bitmap.Config.ARGB_8888
+	/**
+	 * Decodes through the shared Coil loader rather than [BitmapFactory], so whatever the viewer can
+	 * display can also be drawn into a report. SVG has no BitmapFactory path at all, and letting the
+	 * two diverge is what made Share fail on assets that were visibly on screen.
+	 *
+	 * [MAX_EDGE_PX] is a request, not a bound: Coil subsamples by powers of two, so a 5504px source
+	 * comes back at 2752px. That is the same OOM guard the hand-rolled subsampling gave, just
+	 * expressed as a target size.
+	 */
+	private suspend fun decodeScaled(image: ImageSource): Bitmap? {
+		val data: Any = when (image) {
+			is ImageSource.Bytes -> image.bytes
+			is ImageSource.Path -> File(image.path)
 		}
-		return decodeInto(image, opts)
-	}
-
-	private fun decodeInto(image: ImageSource, opts: BitmapFactory.Options): Bitmap? = when (image) {
-		is ImageSource.Bytes -> BitmapFactory.decodeByteArray(image.bytes, 0, image.bytes.size, opts)
-		is ImageSource.Path -> BitmapFactory.decodeFile(image.path, opts)
-	}
-
-	/** Largest power-of-two subsample that keeps the long edge at/under [MAX_EDGE_PX] (OOM guard). */
-	private fun sampleSizeFor(width: Int, height: Int): Int {
-		var sample = 1
-		var longEdge = maxOf(width, height)
-		while (longEdge / 2 >= MAX_EDGE_PX) {
-			longEdge /= 2
-			sample *= 2
-		}
-		return sample
+		val request = ImageRequest.Builder(context)
+			.data(data)
+			.size(MAX_EDGE_PX, MAX_EDGE_PX)
+			.build()
+		return (imageLoader.execute(request) as? SuccessResult)
+			?.image
+			?.toBitmap()
+			?.copy(Bitmap.Config.ARGB_8888, /* isMutable = */ false)
 	}
 
 	private fun drawReport(photo: Bitmap, overlay: ReportOverlay): Bitmap {
