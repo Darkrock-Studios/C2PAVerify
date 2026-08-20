@@ -1,8 +1,11 @@
 package com.darkrockstudios.apps.c2paverify.ui.viewer
 
 import android.content.Intent
+import android.os.Build
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
@@ -12,6 +15,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -21,6 +25,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
@@ -36,11 +42,14 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.darkrockstudios.apps.c2paverify.R
+import com.darkrockstudios.apps.c2paverify.model.common.AssetFormat
+import com.darkrockstudios.apps.c2paverify.model.common.isRenderableBy
 import com.darkrockstudios.apps.c2paverify.model.share.ReportBadge
 import com.darkrockstudios.apps.c2paverify.model.share.ReportBadgeStyle
 import com.darkrockstudios.apps.c2paverify.model.share.ReportOverlay
@@ -80,6 +89,11 @@ fun ViewerScreen(
 
 	val context = LocalContext.current
 	val chooserTitle = stringResource(R.string.share_report_chooser)
+	val snackbarHostState = remember { SnackbarHostState() }
+	val shareFailedMessage = stringResource(R.string.share_report_failed)
+	LaunchedEffect(Unit) {
+		viewModel.shareFailures.collect { snackbarHostState.showSnackbar(shareFailedMessage) }
+	}
 	LaunchedEffect(Unit) {
 		viewModel.shareRequests.collect { uriString ->
 			val send = Intent(Intent.ACTION_SEND).apply {
@@ -94,6 +108,11 @@ fun ViewerScreen(
 	val loaded = state as? InspectionUiState.Loaded
 	val overlay = loaded?.let { reportOverlayFor(it.result.summary) }
 
+	// Assumed true until inspection identifies the asset, so a decodable photo never flashes the
+	// placeholder. Formats the platform can't decode also can't be drawn into a shareable report.
+	val assetFormat = loaded?.result?.format
+	val canPreview = assetFormat?.isRenderableBy(Build.VERSION.SDK_INT) ?: true
+
 	// While the photo is zoomed in (inspecting), slide the summary card down to a peek so it's out
 	// of the way; bring it back when the photo returns to its fit/unzoomed state.
 	val zoomState = rememberZoomableImageState()
@@ -103,6 +122,7 @@ fun ViewerScreen(
 	val peekProgress by animateFloatAsState(if (peeking) 1f else 0f, label = "summaryPeek")
 
 	Scaffold(
+		snackbarHost = { SnackbarHost(snackbarHostState) },
 		topBar = {
 			TopAppBar(
 				title = { Text(stringResource(R.string.viewer_title)) },
@@ -117,7 +137,7 @@ fun ViewerScreen(
 				actions = {
 					if (sharing) {
 						CircularProgressIndicator(modifier = Modifier.padding(end = 16.dp).size(24.dp))
-					} else if (overlay != null) {
+					} else if (overlay != null && canPreview) {
 						IconButton(onClick = { viewModel.shareReport(overlay) }) {
 							Icon(Icons.Filled.Share, stringResource(R.string.share_report))
 						}
@@ -134,18 +154,20 @@ fun ViewerScreen(
 			modifier = Modifier.fillMaxSize(),
 			contentAlignment = Alignment.Center,
 		) {
-			if (imageUri != null) {
-				ZoomableAsyncImage(
+			when {
+				imageUri == null -> Text(
+					text = stringResource(R.string.no_image),
+					color = MaterialTheme.colorScheme.onSurfaceVariant,
+				)
+
+				canPreview -> ZoomableAsyncImage(
 					model = imageUri,
 					contentDescription = stringResource(R.string.selected_photo),
 					state = zoomState,
 					modifier = Modifier.fillMaxSize(),
 				)
-			} else {
-				Text(
-					text = stringResource(R.string.no_image),
-					color = MaterialTheme.colorScheme.onSurfaceVariant,
-				)
+
+				else -> PreviewUnavailable(assetFormat)
 			}
 
 			InspectionOverlay(
@@ -157,6 +179,44 @@ fun ViewerScreen(
 					.navigationBarsPadding()
 					.padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 24.dp)
 					.widthIn(max = 520.dp),
+			)
+		}
+	}
+}
+
+/**
+ * Stands in for the asset when the platform has no decoder for it. Reading provenance never needed
+ * the pixels, so the summary card below still carries a real verdict.
+ */
+@Composable
+private fun PreviewUnavailable(format: AssetFormat?, modifier: Modifier = Modifier) {
+	Column(
+		modifier = modifier.padding(32.dp),
+		horizontalAlignment = Alignment.CenterHorizontally,
+		verticalArrangement = Arrangement.spacedBy(12.dp),
+	) {
+		Icon(
+			imageVector = Icons.Filled.Info,
+			contentDescription = null,
+			modifier = Modifier.size(64.dp),
+			tint = MaterialTheme.colorScheme.onSurfaceVariant,
+		)
+		Text(
+			text = stringResource(R.string.preview_unavailable_title),
+			style = MaterialTheme.typography.titleMedium,
+			textAlign = TextAlign.Center,
+		)
+		Text(
+			text = stringResource(R.string.preview_unavailable_body),
+			style = MaterialTheme.typography.bodyMedium,
+			color = MaterialTheme.colorScheme.onSurfaceVariant,
+			textAlign = TextAlign.Center,
+		)
+		format?.let {
+			Text(
+				text = it.token,
+				style = MaterialTheme.typography.labelSmall,
+				color = MaterialTheme.colorScheme.onSurfaceVariant,
 			)
 		}
 	}

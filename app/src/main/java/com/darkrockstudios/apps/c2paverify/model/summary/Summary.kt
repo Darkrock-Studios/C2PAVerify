@@ -1,6 +1,7 @@
 package com.darkrockstudios.apps.c2paverify.model.summary
 
 import com.darkrockstudios.apps.c2paverify.model.c2pa.C2paManifestData
+import com.darkrockstudios.apps.c2paverify.model.common.AssetFormat
 
 /** High-level verdict shown on the summary card. */
 enum class OverallStatus {
@@ -152,4 +153,6 @@ data class InspectionResult(
 	val manifest: C2paManifestData?,
 	/** Whether the user has an explicit allow/deny rule for this signer. */
 	val signerHasOverride: Boolean = false,
+	/** How the asset was identified, or null when nothing could identify it. */
+	val format: AssetFormat? = null,
 )

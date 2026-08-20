@@ -1,5 +1,6 @@
 package com.darkrockstudios.apps.c2paverify.usecase.inspect
 
+import com.darkrockstudios.apps.c2paverify.model.common.resolveFormat
 import com.darkrockstudios.apps.c2paverify.model.summary.InspectionResult
 import com.darkrockstudios.apps.c2paverify.model.summary.SummaryFactory
 import com.darkrockstudios.apps.c2paverify.model.trust.TrustLevel
@@ -24,6 +25,7 @@ class InspectPhotoUseCase(
 ) {
 	suspend operator fun invoke(imageUri: String): InspectionResult {
 		val image = imageRepository.load(imageUri)
+		val format = image.resolveFormat()
 		// Honour the user's dis-allowed CAs by dropping them from the trust anchors.
 		val trust = trustListRepository.current(userTrustRepository.blockedAnchorSubjects())
 		return when (val result = manifestRepository.inspect(image, trust)) {
@@ -31,6 +33,7 @@ class InspectPhotoUseCase(
 				InspectionResult(
 					summary = SummaryFactory.buildSummary(manifest = null, trust = TrustLevel.UNKNOWN),
 					manifest = null,
+					format = format,
 				)
 
 			is C2paManifestRepository.ManifestResult.Present -> {
@@ -42,6 +45,7 @@ class InspectPhotoUseCase(
 					summary = SummaryFactory.buildSummary(result.data, level),
 					manifest = result.data,
 					signerHasOverride = hasOverride,
+					format = format,
 				)
 			}
 		}

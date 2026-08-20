@@ -6,8 +6,11 @@ package com.darkrockstudios.apps.c2paverify.model.common
  * URI into one of these.
  */
 sealed interface ImageSource {
+	/** The type the platform declared for this asset, if it declared one at all. */
+	val mimeType: String?
+
 	/** Raw, already-loaded image bytes. */
-	data class Bytes(val bytes: ByteArray, val mimeType: String?) : ImageSource {
+	data class Bytes(val bytes: ByteArray, override val mimeType: String?) : ImageSource {
 		override fun equals(other: Any?): Boolean {
 			if (this === other) return true
 			if (other !is Bytes) return false
@@ -18,5 +21,5 @@ sealed interface ImageSource {
 	}
 
 	/** An absolute file path on the local filesystem. */
-	data class Path(val path: String, val mimeType: String?) : ImageSource
+	data class Path(val path: String, override val mimeType: String?) : ImageSource
 }

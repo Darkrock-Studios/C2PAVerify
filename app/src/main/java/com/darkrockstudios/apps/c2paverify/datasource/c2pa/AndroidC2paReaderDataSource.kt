@@ -1,6 +1,8 @@
 package com.darkrockstudios.apps.c2paverify.datasource.c2pa
 
+import com.darkrockstudios.apps.c2paverify.model.common.AssetFormat
 import com.darkrockstudios.apps.c2paverify.model.common.ImageSource
+import com.darkrockstudios.apps.c2paverify.model.common.resolveFormat
 import com.darkrockstudios.apps.c2paverify.model.trust.TrustMaterial
 import io.github.aakira.napier.Napier
 import kotlinx.coroutines.Dispatchers
@@ -29,10 +31,10 @@ class AndroidC2paReaderDataSource : C2paReaderDataSource {
 
 	override suspend fun read(image: ImageSource, trust: TrustMaterial?): C2paRawRead =
 		withContext(Dispatchers.IO) {
-			val format = image.mimeTypeOrDefault()
+			val format = requireFormat(image)
 			buildStream(image).use { stream ->
 				try {
-					openAndExtract(format, stream, trust)
+					openAndExtract(format.token, stream, trust)
 				} catch (e: CancellationException) {
 					throw e
 				} catch (e: Exception) {
@@ -93,14 +95,20 @@ class AndroidC2paReaderDataSource : C2paReaderDataSource {
 		is ImageSource.Path -> FileStream(File(image.path), FileStream.Mode.READ)
 	}
 
-	private fun ImageSource.mimeTypeOrDefault(): String = when (this) {
-		is ImageSource.Bytes -> mimeType
-		is ImageSource.Path -> mimeType
-	} ?: DEFAULT_MIME
+	/**
+	 * Identifies [image] for the reader, refusing to guess when nothing does.
+	 *
+	 * The reader picks a parser by exact token match, so an asset it has no parser for has to be
+	 * reported as unreadable. Defaulting to JPEG instead made it report a HEIF or a TIFF as
+	 * *corrupt*, which reads as a failed verification rather than an unsupported file.
+	 */
+	private fun requireFormat(image: ImageSource): AssetFormat =
+		image.resolveFormat() ?: throw C2paReadException(
+			"Unsupported file type" + (image.mimeType?.let { " ($it)" } ?: ""),
+		)
 
 	private companion object {
 		const val TAG = "C2paReader"
-		const val DEFAULT_MIME = "image/jpeg"
 	}
 }
 

@@ -58,6 +58,14 @@ class InspectionViewModel(
 	private val _shareRequests = MutableSharedFlow<String>(extraBufferCapacity = 1)
 	val shareRequests: SharedFlow<String> = _shareRequests.asSharedFlow()
 
+	/**
+	 * One-shot stream of failed report renders. Decoding can fail for an asset the C2PA reader read
+	 * happily (a HEIC on a device without the codec, say), and without this the share action would
+	 * simply stop with nothing shown.
+	 */
+	private val _shareFailures = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+	val shareFailures: SharedFlow<Unit> = _shareFailures.asSharedFlow()
+
 	private var lastInspectedUri: String? = null
 
 	/** Inspects [uri]; no-ops if it's already loaded for the same URI. */
@@ -94,7 +102,10 @@ class InspectionViewModel(
 		viewModelScope.launch {
 			runCatching { shareReport(uri, overlay) }
 				.onSuccess { _shareRequests.emit(it) }
-				.onFailure { Napier.e(throwable = it) { "Failed to render shareable report for $uri" } }
+				.onFailure {
+					Napier.e(throwable = it) { "Failed to render shareable report for $uri" }
+					_shareFailures.emit(Unit)
+				}
 			_sharing.value = false
 		}
 	}

@@ -16,6 +16,9 @@
     <string name="back">Back</string>
     <string name="selected_photo">Selected photo</string>
     <string name="no_image">No photo selected</string>
+    <string name="preview_unavailable_title">No preview available</string>
+    <string name="preview_unavailable_body">Android has no decoder for this file type, but its Content Credentials were still checked.</string>
+    <string name="share_report_failed">Couldn\'t build a report image for this file.</string>
 
     <!-- Summary card -->
     <string name="inspecting">Inspecting…</string>

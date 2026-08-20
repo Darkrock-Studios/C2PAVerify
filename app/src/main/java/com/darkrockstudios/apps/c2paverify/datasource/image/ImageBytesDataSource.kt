@@ -5,6 +5,7 @@ import android.content.Context
 import android.net.Uri
 import android.provider.MediaStore
 import androidx.core.net.toUri
+import com.darkrockstudios.apps.c2paverify.model.common.AssetFormats
 import com.darkrockstudios.apps.c2paverify.model.common.ImageSource
 import io.github.aakira.napier.Napier
 import kotlinx.coroutines.Dispatchers
@@ -34,7 +35,7 @@ class ImageBytesDataSource(private val context: Context) {
 		if (uriString.startsWith(ASSET_URI_PREFIX)) {
 			val assetPath = uriString.removePrefix(ASSET_URI_PREFIX)
 			val bytes = context.assets.open(assetPath).use { it.readBytes() }
-			ImageSource.Bytes(bytes = bytes, mimeType = mimeTypeFor(assetPath))
+			ImageSource.Bytes(bytes = bytes, mimeType = AssetFormats.fromFileName(assetPath)?.token)
 		} else {
 			val uri = uriString.toUri()
 			val resolver = context.contentResolver
@@ -69,13 +70,6 @@ class ImageBytesDataSource(private val context: Context) {
 	 */
 	private fun toMediaUri(uri: Uri): Uri? = when (uri.authority) {
 		MediaStore.AUTHORITY -> uri.takeIf { it.pathSegments.firstOrNull() != PICKER_PATH }
-		else -> null
-	}
-
-	private fun mimeTypeFor(path: String): String? = when {
-		path.endsWith(".jpg", ignoreCase = true) || path.endsWith(".jpeg", ignoreCase = true) -> "image/jpeg"
-		path.endsWith(".png", ignoreCase = true) -> "image/png"
-		path.endsWith(".webp", ignoreCase = true) -> "image/webp"
 		else -> null
 	}
 
