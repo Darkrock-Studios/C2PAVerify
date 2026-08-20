@@ -2,11 +2,13 @@ package com.darkrockstudios.apps.c2paverify.datasource.c2pa
 
 import androidx.test.platform.app.InstrumentationRegistry
 import com.darkrockstudios.apps.c2paverify.model.common.ImageSource
+import com.darkrockstudios.apps.c2paverify.model.common.resolveFormat
 import com.darkrockstudios.apps.c2paverify.model.summary.SummaryFactory
 import com.darkrockstudios.apps.c2paverify.model.trust.TrustMaterial
 import com.darkrockstudios.apps.c2paverify.repository.C2paManifestParser
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
+import org.junit.Assert.assertEquals
 import org.junit.Test
 import java.io.File
 
@@ -29,6 +31,8 @@ class C2paReaderCaptureTest {
 		"invalid-sig.jpg",
 		"tampered-dat.jpg",
 		"no-manifest.jpg",
+		"no-manifest-tiff.tif",
+		"no-manifest-avif.avif",
 	)
 
 	@Test
@@ -42,8 +46,8 @@ class C2paReaderCaptureTest {
 		val summary = StringBuilder()
 		for (asset in samples) {
 			val bytes = testCtx.assets.open("c2pa/$asset").use { it.readBytes() }
-			val result = runCatching { dataSource.read(ImageSource.Bytes(bytes, "image/jpeg")) }
-			val base = asset.removeSuffix(".jpg")
+			val result = runCatching { dataSource.read(ImageSource.Bytes(bytes, mimeType = null)) }
+			val base = asset.substringBeforeLast('.')
 			result.onSuccess { read ->
 				when (read) {
 					is C2paRawRead.NoManifest -> {
@@ -66,6 +70,30 @@ class C2paReaderCaptureTest {
 		File(outDir, "_summary.txt").writeText(summary.toString())
 		println("C2PA capture summary:\n$summary")
 		println("C2PA capture written to: ${outDir.absolutePath}")
+	}
+
+	/**
+	 * Asserts that formats beyond JPEG reach the right parser with nothing but their own bytes to go
+	 * on. Each of these used to be handed to the JPEG parser by the old `image/jpeg` default, which
+	 * reported a perfectly good TIFF or AVIF as corrupt rather than as simply unsigned.
+	 */
+	@Test
+	fun identifiesNonJpegFormatsFromBytesAlone() = runBlocking {
+		val testCtx = InstrumentationRegistry.getInstrumentation().context
+		listOf(
+			"no-manifest.jpg" to "image/jpeg",
+			"no-manifest-tiff.tif" to "image/tiff",
+			"no-manifest-avif.avif" to "image/avif",
+		).forEach { (asset, expectedToken) ->
+			val bytes = testCtx.assets.open("c2pa/$asset").use { it.readBytes() }
+			val source = ImageSource.Bytes(bytes, mimeType = null)
+
+			assertEquals("$asset identified from its header", expectedToken, source.resolveFormat()?.token)
+
+			// These carry no manifest; the point is that the reader says so, rather than failing to
+			// parse them at all.
+			assertEquals("$asset read cleanly", C2paRawRead.NoManifest, dataSource.read(source))
+		}
 	}
 
 	/**
