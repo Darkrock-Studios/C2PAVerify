@@ -2,6 +2,7 @@ package com.darkrockstudios.apps.c2paverify.datasource.c2pa
 
 import androidx.test.platform.app.InstrumentationRegistry
 import com.darkrockstudios.apps.c2paverify.datasource.image.AssetSourceDataSource
+import com.darkrockstudios.apps.c2paverify.datasource.image.PipeProvider
 import com.darkrockstudios.apps.c2paverify.model.common.ImageSource
 import com.darkrockstudios.apps.c2paverify.model.common.resolveFormat
 import kotlinx.coroutines.runBlocking
@@ -81,6 +82,40 @@ class VideoStreamTest {
 	}
 
 	/**
+	 * A provider that will not hand back a seekable file still gets verified, by way of a local copy.
+	 *
+	 * This is what cloud storage does: Drive and Dropbox hold the document remotely and serve it down
+	 * a pipe. A pipe cannot be seeked and BMFF hard binding is nothing but seeking, so without the
+	 * copy the reader cannot touch it at all.
+	 */
+	@Test
+	fun aVideoServedOverAPipeIsCopiedAndVerified() = runBlocking {
+		val fixture = fixture()
+		val staged = File(appContext.cacheDir, "piped.mp4")
+		fixture.copyTo(staged, overwrite = true)
+		val pipeUri = PipeProvider.uriFor(staged.name)
+
+		// The premise: this URI genuinely has no file behind it.
+		val size = appContext.contentResolver.openFileDescriptor(pipeUri, "r")
+			?.use { it.statSize }
+		assertEquals("the provider must serve a pipe for this test to mean anything", -1L, size)
+
+		val source = AssetSourceDataSource(appContext).read(pipeUri.toString())
+		assertTrue("expected a streamed source, got $source", source is ImageSource.Content)
+		assertEquals("video/mp4", source.resolveFormat()?.token)
+
+		val piped = dataSource.read(source)
+		val direct = dataSource.read(ImageSource.Bytes(fixture.readBytes(), mimeType = null))
+		assertTrue("expected a manifest, got $piped", piped is C2paRawRead.Manifest)
+		assertEquals(
+			(direct as C2paRawRead.Manifest).manifestJson,
+			(piped as C2paRawRead.Manifest).manifestJson,
+		)
+		staged.delete()
+		Unit
+	}
+
+	/**
 	 * A container the app cannot name is still streamed rather than read whole. It is refused by the
 	 * reader either way, but a gigabyte of Matroska pulled into the heap first would crash before
 	 * anything got the chance to refuse it.
@@ -100,39 +135,5 @@ class VideoStreamTest {
 		Unit
 	}
 
-	/**
-	 * Downloads the upstream fixture once per device. Skips rather than fails when the network is
-	 * unavailable, so an offline run does not report a red test it never actually exercised.
-	 */
-	private fun fixture(): File {
-		val cached = File(appContext.filesDir, "fixtures/$FIXTURE_NAME")
-		if (cached.exists() && cached.length() == FIXTURE_BYTES) return cached
-		cached.parentFile?.mkdirs()
-		try {
-			val connection = (URL(FIXTURE_URL).openConnection() as HttpURLConnection).apply {
-				connectTimeout = 30_000
-				readTimeout = 30_000
-			}
-			try {
-				connection.inputStream.use { input ->
-					cached.outputStream().use { output -> input.copyTo(output) }
-				}
-			} finally {
-				connection.disconnect()
-			}
-		} catch (e: Exception) {
-			cached.delete()
-			assumeNoException("Could not fetch $FIXTURE_URL; skipping the MP4 tests", e)
-		}
-		assertEquals("fetched fixture is the wrong size", FIXTURE_BYTES, cached.length())
-		return cached
-	}
-
-	private companion object {
-		const val FIXTURE_NAME = "truepic-20230212-zoetrope.mp4"
-		const val FIXTURE_BYTES = 15_456_823L
-		const val FIXTURE_URL =
-			"https://raw.githubusercontent.com/c2pa-org/public-testfiles/main/" +
-				"legacy/1.4/video/mp4/$FIXTURE_NAME"
-	}
+	private fun fixture(): File = UpstreamVideo.file(appContext)
 }

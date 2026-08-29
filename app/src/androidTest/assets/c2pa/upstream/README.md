@@ -29,8 +29,9 @@ must be refused rather than routed to another format's parser.
 Not vendored: `dng_valid.dng` and `no_c2pa_042.dng` are ~18 MB each. Audio fixtures (m4a, mp3, wav,
 flac) are available upstream if that scope opens up.
 
-The MP4 fixture is fetched, not vendored. `VideoStreamTest` downloads
+The MP4 fixture is fetched, not vendored. `UpstreamVideo` downloads
 `legacy/1.4/video/mp4/truepic-20230212-zoetrope.mp4` (15.4 MB, the only C2PA-signed MP4 upstream
-publishes) from `c2pa-org/public-testfiles` on `main` and caches it in the app's files dir, so only
-the first run on a device needs the network. 15 MB is a permanent cost to the repo for one test
-file; the test skips rather than fails when the download cannot be made.
+publishes) from `c2pa-org/public-testfiles` on `main` and caches it in the app's files dir. A test
+run reinstalls the app, which wipes that, so it is fetched roughly once per run. 15 MB is a
+permanent cost to the repo for one test file; the tests skip rather than fail when the download
+cannot be made.

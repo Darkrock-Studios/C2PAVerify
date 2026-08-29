@@ -11,6 +11,7 @@ import com.darkrockstudios.apps.c2paverify.model.common.isStreamed
 import io.github.aakira.napier.Napier
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import java.io.File
 import java.io.IOException
 import java.io.InputStream
 import java.io.PushbackInputStream
@@ -71,11 +72,56 @@ class AssetSourceDataSource(private val context: Context) {
 			// identify (Matroska, WebM), and pulling a gigabyte of one into the heap would crash long
 			// before anything got to refuse it.
 			if (format == null || format.isStreamed) {
-				ImageSource.Content(uri = readUri.toString(), mimeType = mimeType, header = header)
+				streamedSource(readUri, mimeType, header, pushback)
 			} else {
 				ImageSource.Bytes(bytes = pushback.readBytes(), mimeType = mimeType)
 			}
 		}
+	}
+
+	/**
+	 * Names [uri] for later streaming, or a local copy of it when the provider will not serve one.
+	 *
+	 * Cloud storage (Drive, Dropbox, and cloud-only items in Photos) has no file to hand out and
+	 * serves a document down a pipe instead, which is forward-only. BMFF hard binding is nothing but
+	 * seeking, so those are copied to the cache first. The copy is addressed by URI like any other
+	 * source, so it carries its sniffed header and every reader of it stays unchanged.
+	 */
+	private fun streamedSource(
+		uri: Uri,
+		mimeType: String?,
+		header: ByteArray,
+		input: InputStream,
+	): ImageSource {
+		val readable = if (isSeekable(uri)) uri else Uri.fromFile(copyToCache(input))
+		return ImageSource.Content(uri = readable.toString(), mimeType = mimeType, header = header)
+	}
+
+	/** Whether [uri] opens as something the reader can seek within, rather than a pipe. */
+	private fun isSeekable(uri: Uri): Boolean = runCatching {
+		context.contentResolver.openFileDescriptor(uri, "r")?.use { it.statSize >= 0 }
+	}.onFailure {
+		Napier.d(tag = TAG) { "Could not probe $uri for seeking (${it.message}); copying it" }
+	}.getOrNull() ?: false
+
+	/**
+	 * Writes [input] into the cache and returns the file.
+	 *
+	 * Written fresh every time rather than reused: the bytes behind a remote document can change
+	 * between reads, and this app must never report a verdict for content it did not just read.
+	 */
+	private fun copyToCache(input: InputStream): File {
+		val dir = File(context.cacheDir, STREAMED_DIR)
+		dir.mkdirs()
+		dir.listFiles()?.forEach { it.delete() }
+		val file = File(dir, STREAMED_FILE)
+		try {
+			file.outputStream().use { input.copyTo(it) }
+		} catch (e: Exception) {
+			file.delete()
+			throw e
+		}
+		return file
 	}
 
 	/**
@@ -122,6 +168,8 @@ class AssetSourceDataSource(private val context: Context) {
 	}
 
 	private companion object {
+		const val STREAMED_DIR = "streamed"
+		const val STREAMED_FILE = "asset"
 		const val ASSET_URI_PREFIX = "file:///android_asset/"
 		const val TAG = "AssetSource"
 		const val PICKER_PATH = "picker" // content://media/picker/... rejects setRequireOriginal
