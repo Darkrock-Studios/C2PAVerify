@@ -1,7 +1,7 @@
 default_platform(:android)
 
 platform :android do
-  desc "Deploy to Play Store"
+  desc "Deploy to the Play Store production track"
   lane :deploy do
     gradle(
       task: 'bundle',
@@ -14,7 +14,9 @@ platform :android do
       }
     )
     upload_to_play_store(
-      track: 'internal',
+      # A tagged release publishes straight to production; 'completed' below makes it
+      # a full rollout rather than a staged percentage.
+      track: 'production',
       aab: lane_context[SharedValues::GRADLE_AAB_OUTPUT_PATH],
       skip_upload_metadata: false,
       skip_upload_images: false,
