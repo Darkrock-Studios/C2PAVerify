@@ -26,9 +26,7 @@ val playBundle = providers.gradleProperty("playBundle").orNull?.toBoolean() ?: f
 android {
 	namespace = "com.darkrockstudios.apps.c2paverify"
 	compileSdk {
-		version = release(36) {
-			minorApiLevel = 1
-		}
+		version = release(37)
 	}
 
 	defaultConfig {
