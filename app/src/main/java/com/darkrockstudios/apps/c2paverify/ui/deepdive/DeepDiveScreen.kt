@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.DisableSelection
@@ -101,6 +102,9 @@ fun DeepDiveScreen(
 	showBack: Boolean = true,
 ) {
 	val state by viewModel.state.collectAsStateWithLifecycle()
+	// Held here rather than inside the LazyColumn: a trust change re-inspects, which passes through
+	// Loading and takes the list out of composition, and an inner state would lose the scroll there.
+	val listState = rememberLazyListState()
 
 	Scaffold(
 		topBar = {
@@ -136,6 +140,7 @@ fun DeepDiveScreen(
 			LazyColumn(
 				modifier = Modifier.fillMaxSize().consumeWindowInsets(innerPadding)
 					.testTag(DeepDive.TAG_LIST),
+				state = listState,
 				contentPadding = innerPadding + PaddingValues(16.dp),
 				verticalArrangement = Arrangement.spacedBy(12.dp),
 			) {

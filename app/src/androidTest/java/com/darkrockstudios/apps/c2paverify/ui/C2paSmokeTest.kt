@@ -68,10 +68,7 @@ class C2paSmokeTest {
 		}
 	}
 
-	/**
-	 * The deep-dive is a lazy list, so a section below the fold is not composed until it is
-	 * scrolled to — and re-inspecting rebuilds the list from the top, dropping the scroll.
-	 */
+	/** The deep-dive is a lazy list: a section below the fold composes only once scrolled to. */
 	private fun scrollToDetail(text: String) {
 		composeRule.onNodeWithTag(DeepDive.TAG_LIST).performScrollToNode(hasText(text))
 	}
@@ -93,17 +90,14 @@ class C2paSmokeTest {
 		awaitText(str(R.string.section_signature))
 
 		// Denying the signer recomputes the verdict end-to-end (Room rule -> re-inspect).
+		// The signature card holds its scroll across the re-inspection, so the verdict is read
+		// in place.
 		scrollToDetail(str(R.string.action_distrust_signer))
 		composeRule.onNodeWithText(str(R.string.action_distrust_signer)).performClick()
-		awaitText(str(R.string.status_untrusted))
-		scrollToDetail(str(R.string.trust_untrusted))
 		awaitText(str(R.string.trust_untrusted))
 
 		// Clearing the override restores trust (and leaves persisted state clean for re-runs).
-		scrollToDetail(str(R.string.action_clear_override))
 		composeRule.onNodeWithText(str(R.string.action_clear_override)).performClick()
-		awaitText(str(R.string.status_trusted))
-		scrollToDetail(str(R.string.trust_trusted))
 		awaitText(str(R.string.trust_trusted))
 	}
 
