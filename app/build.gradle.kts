@@ -169,7 +169,17 @@ dependencies {
 	// Image loading & zoom
 	implementation(libs.coil.compose)
 	implementation(libs.coil.network.ktor3)
+	// Decoders the platform lacks: SVG has no native decoder at all, and animated GIF needs one
+	// registered explicitly or Coil renders only the first frame.
+	implementation(libs.coil.svg)
+	implementation(libs.coil.gif)
 	implementation(libs.telephoto.zoomable.image.coil3)
+
+	// Video playback. media3-ui-compose-material3 supplies the Player composable (surface, transport
+	// controls, seek bar); the ui-compose module beneath it carries PlayerSurface.
+	implementation(libs.media3.exoplayer)
+	implementation(libs.media3.ui.compose)
+	implementation(libs.media3.ui.compose.material3)
 
 	// C2PA reading/verification (Android-only native lib via JitPack; needs JNA aar).
 	// c2pa-android transitively pulls the plain jna *jar*; on Android we need the *aar* (which

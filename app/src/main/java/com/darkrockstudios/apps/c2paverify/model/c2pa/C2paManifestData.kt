@@ -127,6 +127,9 @@ data class ValidationIssue(
 			"claimSignature.mismatch",
 			"assertion.dataHash.mismatch",
 			"assertion.boxesHash.mismatch",
+			// The hard binding BMFF assets carry (video, and the BMFF still formats).
+			"assertion.bmffHash.mismatch",
+			"assertion.bmffHash.malformed",
 			"assertion.hashedURI.mismatch",
 			"claim.missing",
 			"claim.hashMismatch",

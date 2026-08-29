@@ -52,9 +52,13 @@ Strict layering, dependencies point **downward only**:
 - Keep the **single on-device E2E smoke test** green (Compose UI / UiAutomator, run via `android`).
 - **Bug-fixing is TDD:** first write a **failing test that reproduces the bug**, confirm it's red,
   fix the code, confirm it's green. Most C2PA bugs are reproducible off-device via fixture JSON.
-- **Test fixtures** come from https://github.com/c2pa-org/public-testfiles/tree/main/2.2 — vendor
-  a small curated subset (no-manifest, valid signed, tampered, AI-generated, multi-ingredient) into
+- **Test fixtures** come from https://github.com/c2pa-org/public-testfiles: vendor a small
+  curated subset (no-manifest, valid signed, tampered, AI-generated, multi-ingredient) into
   `app/src/test/resources/` and `app/src/androidTest/assets/`. Note here when refreshed.
+  The `2.2/` tree on `main` is an empty scaffold: `.gitkeep` only, no binaries. Real files are
+  `legacy/1.4/image/jpeg/` (JPEG only) and, for every other format, the `contrib/google/assets/`
+  corpus on the unmerged `darrellkindred/valtest` branch. Per-format fixtures refreshed 2026-08-28
+  into `app/src/androidTest/assets/c2pa/upstream/`; see the README there.
 
 ## UI conventions
 - Jetpack Compose + Material 3 only. Adaptive multi-pane via `material3.adaptive`

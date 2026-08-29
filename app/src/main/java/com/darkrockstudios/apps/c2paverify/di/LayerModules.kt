@@ -2,7 +2,7 @@ package com.darkrockstudios.apps.c2paverify.di
 
 import com.darkrockstudios.apps.c2paverify.datasource.c2pa.AndroidC2paReaderDataSource
 import com.darkrockstudios.apps.c2paverify.datasource.c2pa.C2paReaderDataSource
-import com.darkrockstudios.apps.c2paverify.datasource.image.ImageBytesDataSource
+import com.darkrockstudios.apps.c2paverify.datasource.image.AssetSourceDataSource
 import com.darkrockstudios.apps.c2paverify.datasource.report.ReportRendererDataSource
 import com.darkrockstudios.apps.c2paverify.datasource.settings.PreferencesDataSource
 import com.darkrockstudios.apps.c2paverify.datasource.trustlist.TrustAnchorParser
@@ -46,14 +46,14 @@ import org.koin.dsl.module
 
 // LAYER 1 — data sources (stateless → factory)
 val dataSourceModule = module {
-	factoryOf(::AndroidC2paReaderDataSource) bind C2paReaderDataSource::class
+	factory { AndroidC2paReaderDataSource(androidContext()) } bind C2paReaderDataSource::class
 	factory { C2paManifestParser(get()) }
-	factory { ImageBytesDataSource(androidContext()) }
+	factory { AssetSourceDataSource(androidContext()) }
 	factory { TrustListAssetDataSource(androidContext()) }
 	factory { TrustListCacheDataSource(androidContext()) }
 	factoryOf(::TrustListRemoteDataSource)
 	factoryOf(::TrustAnchorParser)
-	factory { ReportRendererDataSource(androidContext()) }
+	factory { ReportRendererDataSource(androidContext(), get()) }
 	factory { PreferencesDataSource(androidContext()) }
 }
 

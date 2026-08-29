@@ -2,22 +2,32 @@ package com.darkrockstudios.apps.c2paverify.datasource.report
 
 import android.content.Context
 import android.graphics.Bitmap
-import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.RectF
 import android.graphics.Typeface
+import android.media.MediaMetadataRetriever
 import androidx.core.content.FileProvider
+import androidx.core.net.toUri
+import coil3.ImageLoader
+import coil3.request.ImageRequest
+import coil3.request.SuccessResult
+import coil3.size.Precision
+import coil3.toBitmap
+import com.darkrockstudios.apps.c2paverify.model.common.AssetKind
 import com.darkrockstudios.apps.c2paverify.model.common.ImageSource
+import com.darkrockstudios.apps.c2paverify.model.common.resolveFormat
 import com.darkrockstudios.apps.c2paverify.model.share.ReportBadgeStyle
 import com.darkrockstudios.apps.c2paverify.model.share.ReportOverlay
 import com.darkrockstudios.apps.c2paverify.model.share.ReportTone
+import io.github.aakira.napier.Napier
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.IOException
+import kotlin.math.roundToInt
 
 /**
  * Renders a shareable "verification report": the inspected photo with a [ReportOverlay] panel
@@ -28,7 +38,10 @@ import java.io.IOException
  * Android-only (`android.graphics` + `FileProvider`); isolates that out of the KMP-clean layers.
  * All decoding/encoding runs on [Dispatchers.IO].
  */
-class ReportRendererDataSource(private val context: Context) {
+class ReportRendererDataSource(
+	private val context: Context,
+	private val imageLoader: ImageLoader,
+) {
 
 	suspend fun render(image: ImageSource, overlay: ReportOverlay): String = withContext(Dispatchers.IO) {
 		val photo = decodeScaled(image) ?: throw IOException("Unable to decode image for report")
@@ -45,31 +58,109 @@ class ReportRendererDataSource(private val context: Context) {
 		uri
 	}
 
-	private fun decodeScaled(image: ImageSource): Bitmap? {
-		val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-		decodeInto(image, bounds)
-		val opts = BitmapFactory.Options().apply {
-			inSampleSize = sampleSizeFor(bounds.outWidth, bounds.outHeight)
-			inPreferredConfig = Bitmap.Config.ARGB_8888
+	/**
+	 * Decodes through the shared Coil loader rather than [BitmapFactory], so whatever the viewer can
+	 * display can also be drawn into a report. SVG has no BitmapFactory path at all, and letting the
+	 * two diverge is what made Share fail on assets that were visibly on screen.
+	 *
+	 * [MAX_EDGE_PX] is a ceiling, not a target. Coil infers [Precision.EXACT] whenever a size is set
+	 * without a view to scale the result, which upscales anything smaller than the request;
+	 * [Precision.INEXACT] is what keeps the size an OOM guard and leaves small assets at their own
+	 * resolution.
+	 */
+	private suspend fun decodeScaled(image: ImageSource): Bitmap? {
+		if (image.resolveFormat()?.kind == AssetKind.VIDEO) return posterFrame(image)
+		val data: Any = when (image) {
+			is ImageSource.Bytes -> image.bytes
+			is ImageSource.Path -> File(image.path)
+			is ImageSource.Content -> image.uri
 		}
-		return decodeInto(image, opts)
+		val request = ImageRequest.Builder(context)
+			.data(data)
+			.size(MAX_EDGE_PX, MAX_EDGE_PX)
+			.precision(Precision.INEXACT)
+			.build()
+		return (imageLoader.execute(request) as? SuccessResult)
+			?.image
+			?.toBitmap()
+			?.copy(Bitmap.Config.ARGB_8888, /* isMutable = */ false)
 	}
 
-	private fun decodeInto(image: ImageSource, opts: BitmapFactory.Options): Bitmap? = when (image) {
-		is ImageSource.Bytes -> BitmapFactory.decodeByteArray(image.bytes, 0, image.bytes.size, opts)
-		is ImageSource.Path -> BitmapFactory.decodeFile(image.path, opts)
+	/**
+	 * The frame a video opens on, standing in for the asset the way the photo does for a still. A
+	 * video has no single image to report on, and the first frame is the one the viewer was looking
+	 * at before they hit share.
+	 *
+	 * As on the image path, [MAX_EDGE_PX] is a ceiling rather than a target: asking the retriever for
+	 * a scaled frame larger than the source gets one, so anything already within the ceiling is taken
+	 * at its own resolution.
+	 */
+	private fun posterFrame(image: ImageSource): Bitmap? {
+		val retriever = MediaMetadataRetriever()
+		return try {
+			when (image) {
+				is ImageSource.Content -> retriever.setDataSource(context, image.uri.toUri())
+				is ImageSource.Path -> retriever.setDataSource(image.path)
+				is ImageSource.Bytes -> return null
+			}
+			val frame = retriever.scaledDownFrame() ?: return null
+			frame.copy(Bitmap.Config.ARGB_8888, /* isMutable = */ false)
+				.also { if (it !== frame) frame.recycle() }
+		} catch (e: IOException) {
+			noFrame(e)
+		} catch (e: IllegalArgumentException) {
+			noFrame(e)
+		} catch (e: IllegalStateException) {
+			noFrame(e)
+		} finally {
+			retriever.release()
+		}
 	}
 
-	/** Largest power-of-two subsample that keeps the long edge at/under [MAX_EDGE_PX] (OOM guard). */
-	private fun sampleSizeFor(width: Int, height: Int): Int {
-		var sample = 1
-		var longEdge = maxOf(width, height)
-		while (longEdge / 2 >= MAX_EDGE_PX) {
-			longEdge /= 2
-			sample *= 2
-		}
-		return sample
+	/**
+	 * Reports that no frame could be taken. Anything the retriever throws beyond this is caught by
+	 * the share action itself, which already degrades to "couldn't build a report image".
+	 */
+	private fun noFrame(cause: Throwable): Bitmap? {
+		Napier.w(tag = TAG, throwable = cause) { "Unable to extract a poster frame" }
+		return null
 	}
+
+	/** The opening frame, shrunk to fit [MAX_EDGE_PX] only if it exceeds it. */
+	private fun MediaMetadataRetriever.scaledDownFrame(): Bitmap? {
+		val rotation = metadataInt(MediaMetadataRetriever.METADATA_KEY_VIDEO_ROTATION) ?: 0
+		val rawWidth = metadataInt(MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH)
+		val rawHeight = metadataInt(MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT)
+		// A frame comes back already rotated, so a quarter turn swaps the dimensions it reports.
+		val quarterTurned = rotation == 90 || rotation == 270
+		val width = if (quarterTurned) rawHeight else rawWidth
+		val height = if (quarterTurned) rawWidth else rawHeight
+
+		// Without dimensions the ceiling is all there is to go on: an unscaled 8K frame is ~140 MB,
+		// and this bitmap is copied twice more before the report is written.
+		if (width == null || height == null) {
+			return getScaledFrameAtTime(
+				0L,
+				MediaMetadataRetriever.OPTION_CLOSEST_SYNC,
+				MAX_EDGE_PX,
+				MAX_EDGE_PX,
+			)
+		}
+		val longestEdge = maxOf(width, height)
+		if (longestEdge <= MAX_EDGE_PX) {
+			return getFrameAtTime(0L, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
+		}
+		val scale = MAX_EDGE_PX.toFloat() / longestEdge
+		return getScaledFrameAtTime(
+			0L,
+			MediaMetadataRetriever.OPTION_CLOSEST_SYNC,
+			(width * scale).roundToInt().coerceAtLeast(1),
+			(height * scale).roundToInt().coerceAtLeast(1),
+		)
+	}
+
+	private fun MediaMetadataRetriever.metadataInt(key: Int): Int? =
+		extractMetadata(key)?.toIntOrNull()
 
 	private fun drawReport(photo: Bitmap, overlay: ReportOverlay): Bitmap {
 		val width = photo.width
@@ -297,6 +388,7 @@ class ReportRendererDataSource(private val context: Context) {
 	}
 
 	private companion object {
+		const val TAG = "ReportRenderer"
 		const val MAX_EDGE_PX = 2048
 		// Tint strength (~20% over the dark panel) for the hero band behind the headline.
 		const val HERO_BAND_ALPHA = 0x33

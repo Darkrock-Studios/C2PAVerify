@@ -1,12 +1,18 @@
 package com.darkrockstudios.apps.c2paverify.datasource.c2pa
 
+import android.content.Context
+import android.os.ParcelFileDescriptor
+import androidx.core.net.toUri
+import com.darkrockstudios.apps.c2paverify.model.common.AssetFormat
 import com.darkrockstudios.apps.c2paverify.model.common.ImageSource
+import com.darkrockstudios.apps.c2paverify.model.common.resolveFormat
 import com.darkrockstudios.apps.c2paverify.model.trust.TrustMaterial
 import io.github.aakira.napier.Napier
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.contentauth.c2pa.C2PAContext
 import org.contentauth.c2pa.C2PASettings
+import org.contentauth.c2pa.CallbackStream
 import org.contentauth.c2pa.DataStream
 import org.contentauth.c2pa.FileStream
 import org.contentauth.c2pa.Reader
@@ -14,7 +20,9 @@ import org.contentauth.c2pa.Stream
 import org.contentauth.c2pa.settings.C2PASettingsDefinition
 import org.contentauth.c2pa.settings.TrustSettings
 import org.contentauth.c2pa.settings.VerifySettings
+import java.io.Closeable
 import java.io.File
+import java.nio.ByteBuffer
 import kotlin.coroutines.cancellation.CancellationException
 
 /**
@@ -25,14 +33,14 @@ import kotlin.coroutines.cancellation.CancellationException
  * When [TrustMaterial] is supplied, the reader is built from [C2PASettings] with trust
  * verification enabled, so the manifest JSON carries `signingCredential.trusted` / `.untrusted`.
  */
-class AndroidC2paReaderDataSource : C2paReaderDataSource {
+class AndroidC2paReaderDataSource(private val context: Context) : C2paReaderDataSource {
 
 	override suspend fun read(image: ImageSource, trust: TrustMaterial?): C2paRawRead =
 		withContext(Dispatchers.IO) {
-			val format = image.mimeTypeOrDefault()
-			buildStream(image).use { stream ->
-				try {
-					openAndExtract(format, stream, trust)
+			val format = requireFormat(image)
+			buildStream(image).use { source ->
+				val read = try {
+					openAndExtract(format.token, source.stream, trust)
 				} catch (e: CancellationException) {
 					throw e
 				} catch (e: Exception) {
@@ -47,6 +55,13 @@ class AndroidC2paReaderDataSource : C2paReaderDataSource {
 						throw C2paReadException("Failed to read C2PA data: ${e.message}", e)
 					}
 				}
+				// A read that failed part way through looks to the reader like a shorter file, which
+				// for a hard binding comes back as a hash mismatch. Reporting that as a verdict would
+				// accuse an intact asset of being tampered with, so the I/O failure wins.
+				source.readFailure?.let {
+					throw C2paReadException("Reading the file failed part way through", it)
+				}
+				read
 			}
 		}
 
@@ -54,12 +69,12 @@ class AndroidC2paReaderDataSource : C2paReaderDataSource {
 		if (trust != null && trust.hasAnchors) {
 			// Settings may be freed once the context is built; the context must outlive the reader.
 			val settings = C2PASettings.fromDefinition(buildDefinition(trust))
-			val context = try {
+			val c2paContext = try {
 				C2PAContext.fromSettings(settings)
 			} finally {
 				settings.close()
 			}
-			context.use { ctx ->
+			c2paContext.use { ctx ->
 				Reader.fromContext(ctx).withStream(format, stream).use { extract(it) }
 			}
 		} else {
@@ -88,19 +103,93 @@ class AndroidC2paReaderDataSource : C2paReaderDataSource {
 		verify = VerifySettings(verifyTrust = true, verifyTimestampTrust = true),
 	)
 
-	private fun buildStream(image: ImageSource): Stream = when (image) {
-		is ImageSource.Bytes -> DataStream(image.bytes)
-		is ImageSource.Path -> FileStream(File(image.path), FileStream.Mode.READ)
+	private fun buildStream(image: ImageSource): AssetStream = when (image) {
+		is ImageSource.Bytes -> AssetStream(backing = null, stream = DataStream(image.bytes))
+
+		is ImageSource.Path -> AssetStream(
+			backing = null,
+			stream = FileStream(File(image.path), FileStream.Mode.READ),
+		)
+
+		is ImageSource.Content -> contentStream(image.uri)
 	}
 
-	private fun ImageSource.mimeTypeOrDefault(): String = when (this) {
-		is ImageSource.Bytes -> mimeType
-		is ImageSource.Path -> mimeType
-	} ?: DEFAULT_MIME
+	/**
+	 * A seekable stream over [uriString] that never materialises the asset.
+	 *
+	 * A provider that hands back a pipe rather than a real file is refused here rather than half way
+	 * through a parse: BMFF hard binding is nothing but seeking, so a forward-only descriptor cannot
+	 * serve the reader at all.
+	 */
+	private fun contentStream(uriString: String): AssetStream {
+		val descriptor = context.contentResolver.openFileDescriptor(uriString.toUri(), "r")
+			?: throw C2paReadException("Unable to open $uriString")
+		val size = descriptor.statSize
+		if (size < 0) {
+			descriptor.close()
+			throw C2paReadException("This file cannot be read from where it is stored")
+		}
+		// AutoCloseInputStream owns the descriptor, so closing the stream closes its channel and the
+		// descriptor exactly once. Closing the two separately would risk closing a file number that
+		// had already been released and reused.
+		val input = ParcelFileDescriptor.AutoCloseInputStream(descriptor)
+		return try {
+			val channel = input.channel
+			val stream = AssetStream(backing = input)
+			val window = AssetWindow(start = 0L, length = size) { buffer, count, position ->
+				runCatching { channel.read(ByteBuffer.wrap(buffer, 0, count), position) }
+					.onFailure {
+						Napier.w(tag = TAG, throwable = it) { "Read failed at $position" }
+						stream.readFailure = it
+					}
+					.getOrDefault(0)
+			}
+			stream.also { it.stream = CallbackStream(reader = window::read, seeker = window::seek) }
+		} catch (e: Exception) {
+			input.close()
+			throw C2paReadException("Unable to read $uriString", e)
+		}
+	}
+
+	/**
+	 * A reader [stream] together with the platform handle it reads through, so both are released by
+	 * one [close] whether the reader finished or threw.
+	 */
+	private class AssetStream(private val backing: Closeable?, stream: Stream? = null) : Closeable {
+
+		lateinit var stream: Stream
+
+		/** Set when the platform failed to serve a read, so a short read is not read as the file's end. */
+		@Volatile
+		var readFailure: Throwable? = null
+
+		init {
+			stream?.let { this.stream = it }
+		}
+
+		override fun close() {
+			try {
+				if (::stream.isInitialized) stream.close()
+			} finally {
+				backing?.close()
+			}
+		}
+	}
+
+	/**
+	 * Identifies [image] for the reader, refusing to guess when nothing does.
+	 *
+	 * The reader picks a parser by exact token match, so an asset it has no parser for has to be
+	 * reported as unreadable. Defaulting to JPEG instead made it report a HEIF or a TIFF as
+	 * *corrupt*, which reads as a failed verification rather than an unsupported file.
+	 */
+	private fun requireFormat(image: ImageSource): AssetFormat =
+		image.resolveFormat() ?: throw C2paReadException(
+			"Unsupported file type" + (image.mimeType?.let { " ($it)" } ?: ""),
+		)
 
 	private companion object {
 		const val TAG = "C2paReader"
-		const val DEFAULT_MIME = "image/jpeg"
 	}
 }
 

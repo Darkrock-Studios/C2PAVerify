@@ -34,7 +34,8 @@ class MainActivity : ComponentActivity() {
 	}
 
 	private fun handleShareIntent(intent: Intent?) {
-		if (intent == null || intent.type?.startsWith("image/") != true) return
+		val type = intent?.type
+		if (type == null || !(type.startsWith("image/") || type.startsWith("video/"))) return
 		val uri: Uri? = when (intent.action) {
 			Intent.ACTION_SEND ->
 				IntentCompat.getParcelableExtra(intent, Intent.EXTRA_STREAM, Uri::class.java)

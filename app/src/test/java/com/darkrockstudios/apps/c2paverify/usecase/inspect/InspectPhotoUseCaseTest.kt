@@ -33,12 +33,15 @@ class InspectPhotoUseCaseTest {
 			"Missing fixture $name"
 		}.bufferedReader().use { it.readText() }
 
-	private fun useCaseReturning(raw: C2paRawRead): InspectPhotoUseCase {
+	private fun useCaseReturning(
+		raw: C2paRawRead,
+		source: ImageSource = ImageSource.Bytes(ByteArray(0), "image/jpeg"),
+	): InspectPhotoUseCase {
 		val reader = object : C2paReaderDataSource {
 			override suspend fun read(image: ImageSource, trust: TrustMaterial?): C2paRawRead = raw
 		}
 		val imageRepo = mockk<ImageRepository> {
-			coEvery { load(any()) } returns ImageSource.Bytes(ByteArray(0), "image/jpeg")
+			coEvery { load(any()) } returns source
 		}
 		val trustListRepo = mockk<TrustListRepository> {
 			coEvery { current(any()) } returns TrustMaterial("-----BEGIN CERTIFICATE-----\nx\n-----END CERTIFICATE-----")
@@ -76,5 +79,16 @@ class InspectPhotoUseCaseTest {
 		val result = useCaseReturning(C2paRawRead.NoManifest).invoke("content://x")
 		assertEquals(OverallStatus.NO_MANIFEST, result.summary.status)
 		assertNull(result.manifest)
+	}
+
+	@Test
+	fun `a streamed source still carries its format to the UI`() = runTest {
+		val video = ImageSource.Content(
+			uri = "content://media/external/video/media/42",
+			mimeType = "video/mp4",
+			header = ByteArray(4) + "ftyp".toByteArray() + "isom".toByteArray(),
+		)
+		val result = useCaseReturning(C2paRawRead.NoManifest, source = video).invoke("content://x")
+		assertEquals("video/mp4", result.format?.token)
 	}
 }
