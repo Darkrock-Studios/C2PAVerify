@@ -3,8 +3,8 @@
 
     <!-- Picker / empty state -->
     <string name="empty_title">Inspect Content Credentials</string>
-    <string name="empty_body">Pick a photo to check for C2PA / Content Authenticity data — who made it, whether it has been edited or AI-generated, and whether the signer is trusted. You can also share a photo to this app from anywhere.</string>
-    <string name="pick_photo">Pick a photo</string>
+    <string name="empty_body">Pick a photo or video to check for C2PA / Content Authenticity data: who made it, whether it has been edited or AI-generated, and whether the signer is trusted. You can also share a file to this app from anywhere.</string>
+    <string name="pick_photo">Pick a file</string>
     <string name="example_section_title">Try an example</string>
     <string name="example_trusted_title">Trusted photo</string>
     <string name="example_trusted_subtitle">Signed by a trusted source</string>
@@ -12,12 +12,12 @@
     <string name="example_ai_subtitle">Flagged as AI-generated content</string>
 
     <!-- Viewer -->
-    <string name="viewer_title">Inspect photo</string>
+    <string name="viewer_title">Inspect</string>
     <string name="back">Back</string>
-    <string name="selected_photo">Selected photo</string>
-    <string name="no_image">No photo selected</string>
+    <string name="selected_asset">Selected file</string>
+    <string name="no_image">Nothing selected</string>
     <string name="preview_unavailable_title">No preview available</string>
-    <string name="preview_unavailable_body">Android has no decoder for this file type, but its Content Credentials were still checked.</string>
+    <string name="preview_unavailable_body">This app can\'t display this file type, but its Content Credentials were still checked.</string>
     <string name="share_report_failed">Couldn\'t build a report image for this file.</string>
 
     <!-- Summary card -->

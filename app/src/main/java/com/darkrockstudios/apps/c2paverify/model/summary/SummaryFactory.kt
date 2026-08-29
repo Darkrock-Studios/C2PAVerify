@@ -158,6 +158,10 @@ object SummaryFactory {
 		"c2pa.painted",
 		"c2pa.retouched",
 		"c2pa.redacted",
+		// Time-based edits, which only appear on video and audio.
+		"c2pa.transcoded",
+		"c2pa.dubbed",
+		"c2pa.translated",
 	)
 
 	/**

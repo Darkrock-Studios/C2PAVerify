@@ -26,5 +26,11 @@ clock and the trust list, not format handling.
 `pdf_valid.pdf` is the negative case: our native library is built without the `pdf` feature, so PDF
 must be refused rather than routed to another format's parser.
 
-Not vendored: `dng_valid.dng` and `no_c2pa_042.dng` are ~18 MB each. Audio and video fixtures
-(m4a, mp3, wav, flac, mov, mp4) are available upstream if that scope opens up.
+Not vendored: `dng_valid.dng` and `no_c2pa_042.dng` are ~18 MB each. Audio fixtures (m4a, mp3, wav,
+flac) are available upstream if that scope opens up.
+
+The MP4 fixture is fetched, not vendored. `VideoStreamTest` downloads
+`legacy/1.4/video/mp4/truepic-20230212-zoetrope.mp4` (15.4 MB, the only C2PA-signed MP4 upstream
+publishes) from `c2pa-org/public-testfiles` on `main` and caches it in the app's files dir, so only
+the first run on a device needs the network. 15 MB is a permanent cost to the repo for one test
+file; the test skips rather than fails when the download cannot be made.

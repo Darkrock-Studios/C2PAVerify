@@ -228,6 +228,25 @@ class SummaryFactoryTest {
 	}
 
 	@Test
+	fun `detectEdited flags the time-based edits that only video and audio carry`() {
+		val transcoded = """
+			{
+			  "active_manifest": "m1",
+			  "manifests": { "m1": { "assertions": [
+			    { "label": "c2pa.actions.v2", "data": { "actions": [
+			      { "action": "c2pa.created" },
+			      { "action": "c2pa.transcoded" }
+			    ] } }
+			  ] } },
+			  "validation_state": "Valid"
+			}
+		""".trimIndent()
+		val result = SummaryFactory.detectEdited(parser.parse(transcoded))
+		assertTrue(result.isEdited)
+		assertTrue(result.actions.contains("c2pa.transcoded"))
+	}
+
+	@Test
 	fun `primaryOrigin prefers AI over a co-present capture, edits drop to secondary`() {
 		val json = """
 			{

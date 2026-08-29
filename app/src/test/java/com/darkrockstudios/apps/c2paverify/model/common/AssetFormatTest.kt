@@ -176,6 +176,50 @@ class AssetFormatTest {
 	}
 
 	@Test
+	fun `the bmff video family is playable and nothing else is`() {
+		listOf("video/mp4", "video/x-m4v", "video/quicktime").forEach { mime ->
+			assertTrue(mime, requireNotNull(AssetFormats.fromMimeType(mime)).isPlayable())
+		}
+		// AVI has no player here, and neither audio nor any still image is played at all.
+		listOf("video/msvideo", "audio/mp4", "audio/flac", "image/jpeg", "image/avif")
+			.forEach { mime ->
+				assertFalse(mime, requireNotNull(AssetFormats.fromMimeType(mime)).isPlayable())
+			}
+	}
+
+	@Test
+	fun `time-based formats are streamed and stills are not`() {
+		listOf("video/mp4", "video/msvideo", "audio/mp4", "audio/flac").forEach { mime ->
+			assertTrue(mime, requireNotNull(AssetFormats.fromMimeType(mime)).isStreamed)
+		}
+		listOf("image/jpeg", "image/x-adobe-dng", "image/svg+xml").forEach { mime ->
+			assertFalse(mime, requireNotNull(AssetFormats.fromMimeType(mime)).isStreamed)
+		}
+		assertFalse(requireNotNull(AssetFormats.fromFileName("sidecar.c2pa")).isStreamed)
+	}
+
+	@Test
+	fun `a content source is identified from the header it carries`() {
+		val source = ImageSource.Content(
+			uri = "content://media/external/video/media/42",
+			mimeType = "image/jpeg",
+			header = ftyp("isom"),
+		)
+		// The pre-read head beats a declared type that contradicts it, exactly as raw bytes do.
+		assertEquals("video/mp4", source.resolveFormat()?.token)
+	}
+
+	@Test
+	fun `a content source without a header falls back to its declared type`() {
+		val source = ImageSource.Content(
+			uri = "content://media/external/video/media/42",
+			mimeType = "video/quicktime",
+			header = null,
+		)
+		assertEquals("video/quicktime", source.resolveFormat()?.token)
+	}
+
+	@Test
 	fun `avif is renderable only once the platform gained a decoder for it`() {
 		val avif = requireNotNull(AssetFormats.fromMimeType("image/avif"))
 		assertFalse(avif.isRenderableBy(minSdk))

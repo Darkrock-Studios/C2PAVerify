@@ -34,7 +34,9 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -49,6 +51,8 @@ import androidx.core.net.toUri
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.darkrockstudios.apps.c2paverify.R
 import com.darkrockstudios.apps.c2paverify.model.common.AssetFormat
+import com.darkrockstudios.apps.c2paverify.model.common.AssetFormats
+import com.darkrockstudios.apps.c2paverify.model.common.isPlayable
 import com.darkrockstudios.apps.c2paverify.model.common.isRenderableBy
 import com.darkrockstudios.apps.c2paverify.model.share.ReportBadge
 import com.darkrockstudios.apps.c2paverify.model.share.ReportBadgeStyle
@@ -108,10 +112,20 @@ fun ViewerScreen(
 	val loaded = state as? InspectionUiState.Loaded
 	val overlay = loaded?.let { reportOverlayFor(it.result.summary) }
 
-	// Assumed true until inspection identifies the asset, so a decodable photo never flashes the
+	// Until inspection identifies the asset, the file name is the only hint available; without it a
+	// video would take the image branch first and show an empty frame. A content URI usually carries
+	// no extension, in which case the asset is assumed decodable so a photo never flashes the
 	// placeholder. Formats the platform can't decode also can't be drawn into a shareable report.
-	val assetFormat = loaded?.result?.format
+	val guessedFormat = remember(imageUri) {
+		imageUri?.let { AssetFormats.fromFileName(it.substringBefore('?')) }
+	}
+	val assetFormat = loaded?.result?.format ?: guessedFormat
 	val canPreview = assetFormat?.isRenderableBy(Build.VERSION.SDK_INT) ?: true
+	val canPlay = assetFormat?.isPlayable() == true
+
+	// The player's transport controls sit where the summary card does, so the card gets out of their
+	// way on the same terms as it does for a zoomed photo.
+	var controlsVisible by rememberSaveable { mutableStateOf(true) }
 
 	// While the photo is zoomed in (inspecting), slide the summary card down to a peek so it's out
 	// of the way; bring it back when the photo returns to its fit/unzoomed state.
@@ -119,7 +133,8 @@ fun ViewerScreen(
 	val peeking by remember {
 		derivedStateOf { (zoomState.zoomableState.zoomFraction ?: 0f) > 0.02f }
 	}
-	val peekProgress by animateFloatAsState(if (peeking) 1f else 0f, label = "summaryPeek")
+	val peekTarget = if (canPlay) controlsVisible else peeking
+	val peekProgress by animateFloatAsState(if (peekTarget) 1f else 0f, label = "summaryPeek")
 
 	Scaffold(
 		snackbarHost = { SnackbarHost(snackbarHostState) },
@@ -137,7 +152,7 @@ fun ViewerScreen(
 				actions = {
 					if (sharing) {
 						CircularProgressIndicator(modifier = Modifier.padding(end = 16.dp).size(24.dp))
-					} else if (overlay != null && canPreview) {
+					} else if (overlay != null && (canPreview || canPlay)) {
 						IconButton(onClick = { viewModel.shareReport(overlay) }) {
 							Icon(Icons.Filled.Share, stringResource(R.string.share_report))
 						}
@@ -160,9 +175,16 @@ fun ViewerScreen(
 					color = MaterialTheme.colorScheme.onSurfaceVariant,
 				)
 
+				canPlay -> VideoPreview(
+					uri = imageUri,
+					showControls = controlsVisible,
+					onToggleControls = { controlsVisible = !controlsVisible },
+					modifier = Modifier.fillMaxSize(),
+				)
+
 				canPreview -> ZoomableAsyncImage(
 					model = imageUri,
-					contentDescription = stringResource(R.string.selected_photo),
+					contentDescription = stringResource(R.string.selected_asset),
 					state = zoomState,
 					modifier = Modifier.fillMaxSize(),
 				)

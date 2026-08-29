@@ -1,5 +1,8 @@
 package com.darkrockstudios.apps.c2paverify.datasource.c2pa
 
+import android.content.Context
+import android.os.ParcelFileDescriptor
+import androidx.core.net.toUri
 import com.darkrockstudios.apps.c2paverify.model.common.AssetFormat
 import com.darkrockstudios.apps.c2paverify.model.common.ImageSource
 import com.darkrockstudios.apps.c2paverify.model.common.resolveFormat
@@ -9,6 +12,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.contentauth.c2pa.C2PAContext
 import org.contentauth.c2pa.C2PASettings
+import org.contentauth.c2pa.CallbackStream
 import org.contentauth.c2pa.DataStream
 import org.contentauth.c2pa.FileStream
 import org.contentauth.c2pa.Reader
@@ -16,7 +20,9 @@ import org.contentauth.c2pa.Stream
 import org.contentauth.c2pa.settings.C2PASettingsDefinition
 import org.contentauth.c2pa.settings.TrustSettings
 import org.contentauth.c2pa.settings.VerifySettings
+import java.io.Closeable
 import java.io.File
+import java.nio.ByteBuffer
 import kotlin.coroutines.cancellation.CancellationException
 
 /**
@@ -27,14 +33,14 @@ import kotlin.coroutines.cancellation.CancellationException
  * When [TrustMaterial] is supplied, the reader is built from [C2PASettings] with trust
  * verification enabled, so the manifest JSON carries `signingCredential.trusted` / `.untrusted`.
  */
-class AndroidC2paReaderDataSource : C2paReaderDataSource {
+class AndroidC2paReaderDataSource(private val context: Context) : C2paReaderDataSource {
 
 	override suspend fun read(image: ImageSource, trust: TrustMaterial?): C2paRawRead =
 		withContext(Dispatchers.IO) {
 			val format = requireFormat(image)
-			buildStream(image).use { stream ->
+			buildStream(image).use { source ->
 				try {
-					openAndExtract(format.token, stream, trust)
+					openAndExtract(format.token, source.stream, trust)
 				} catch (e: CancellationException) {
 					throw e
 				} catch (e: Exception) {
@@ -56,12 +62,12 @@ class AndroidC2paReaderDataSource : C2paReaderDataSource {
 		if (trust != null && trust.hasAnchors) {
 			// Settings may be freed once the context is built; the context must outlive the reader.
 			val settings = C2PASettings.fromDefinition(buildDefinition(trust))
-			val context = try {
+			val c2paContext = try {
 				C2PAContext.fromSettings(settings)
 			} finally {
 				settings.close()
 			}
-			context.use { ctx ->
+			c2paContext.use { ctx ->
 				Reader.fromContext(ctx).withStream(format, stream).use { extract(it) }
 			}
 		} else {
@@ -90,9 +96,63 @@ class AndroidC2paReaderDataSource : C2paReaderDataSource {
 		verify = VerifySettings(verifyTrust = true, verifyTimestampTrust = true),
 	)
 
-	private fun buildStream(image: ImageSource): Stream = when (image) {
-		is ImageSource.Bytes -> DataStream(image.bytes)
-		is ImageSource.Path -> FileStream(File(image.path), FileStream.Mode.READ)
+	private fun buildStream(image: ImageSource): AssetStream = when (image) {
+		is ImageSource.Bytes -> AssetStream(DataStream(image.bytes), backing = null)
+
+		is ImageSource.Path ->
+			AssetStream(FileStream(File(image.path), FileStream.Mode.READ), backing = null)
+
+		is ImageSource.Content -> contentStream(image.uri)
+	}
+
+	/**
+	 * A seekable stream over [uriString] that never materialises the asset.
+	 *
+	 * A provider that hands back a pipe rather than a real file is refused here rather than half way
+	 * through a parse: BMFF hard binding is nothing but seeking, so a forward-only descriptor cannot
+	 * serve the reader at all.
+	 */
+	private fun contentStream(uriString: String): AssetStream {
+		val descriptor = context.contentResolver.openFileDescriptor(uriString.toUri(), "r")
+			?: throw C2paReadException("Unable to open $uriString")
+		val size = descriptor.statSize
+		if (size < 0) {
+			descriptor.close()
+			throw C2paReadException("This file cannot be read from where it is stored")
+		}
+		// AutoCloseInputStream owns the descriptor, so closing the stream closes its channel and the
+		// descriptor exactly once. Closing the two separately would risk closing a file number that
+		// had already been released and reused.
+		val input = ParcelFileDescriptor.AutoCloseInputStream(descriptor)
+		return try {
+			val channel = input.channel
+			val window = AssetWindow(start = 0L, length = size) { buffer, count, position ->
+				runCatching { channel.read(ByteBuffer.wrap(buffer, 0, count), position) }
+					.onFailure { Napier.w(tag = TAG, throwable = it) { "Read failed at $position" } }
+					.getOrDefault(0)
+			}
+			AssetStream(
+				stream = CallbackStream(reader = window::read, seeker = window::seek),
+				backing = input,
+			)
+		} catch (e: Exception) {
+			input.close()
+			throw C2paReadException("Unable to read $uriString", e)
+		}
+	}
+
+	/**
+	 * A reader [stream] together with the platform handle it reads through, so both are released by
+	 * one [close] whether the reader finished or threw.
+	 */
+	private class AssetStream(val stream: Stream, private val backing: Closeable?) : Closeable {
+		override fun close() {
+			try {
+				stream.close()
+			} finally {
+				backing?.close()
+			}
+		}
 	}
 
 	/**

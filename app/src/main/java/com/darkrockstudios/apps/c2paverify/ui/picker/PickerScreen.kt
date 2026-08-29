@@ -71,9 +71,8 @@ private val exampleImages = listOf(
 )
 
 /**
- * Landing screen: an informative empty state, the Android Photo Picker
- * ([ActivityResultContracts.PickVisualMedia], no storage permission required), and a couple of
- * bundled example images so the app can be tried without a C2PA photo on hand.
+ * Landing screen: an informative empty state, a document picker for images and video, and a couple
+ * of bundled example images so the app can be tried without a C2PA asset on hand.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -84,8 +83,8 @@ fun PickerScreen(
 ) {
 	// Deliberately ACTION_OPEN_DOCUMENT (SAF), NOT the Photo Picker: the picker only exposes
 	// pre-redacted picker:// URIs. SAF can still hand back a media-backed URI that MediaProvider
-	// redacts, so ImageBytesDataSource re-reads the original via ACCESS_MEDIA_LOCATION +
-	// setRequireOriginal — which is why we request that permission before opening the picker.
+	// redacts, so AssetSourceDataSource reaches the original via ACCESS_MEDIA_LOCATION +
+	// setRequireOriginal, which is why we request that permission before opening the picker.
 	val openDocument = rememberLauncherForActivityResult(
 		ActivityResultContracts.OpenDocument(),
 	) { uri -> if (uri != null) onImagePicked(uri.toString()) }
@@ -94,7 +93,7 @@ fun PickerScreen(
 	// intact), then open the document picker regardless of the user's choice.
 	val requestMediaLocation = rememberLauncherForActivityResult(
 		ActivityResultContracts.RequestPermission(),
-	) { openDocument.launch(arrayOf("image/*")) }
+	) { openDocument.launch(arrayOf("image/*", "video/*")) }
 
 	Scaffold(
 		topBar = {

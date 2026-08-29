@@ -8,16 +8,21 @@ import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.RectF
 import android.graphics.Typeface
+import android.media.MediaMetadataRetriever
 import androidx.core.content.FileProvider
+import androidx.core.net.toUri
 import coil3.ImageLoader
 import coil3.request.ImageRequest
 import coil3.request.SuccessResult
 import coil3.size.Precision
 import coil3.toBitmap
+import com.darkrockstudios.apps.c2paverify.model.common.AssetKind
 import com.darkrockstudios.apps.c2paverify.model.common.ImageSource
+import com.darkrockstudios.apps.c2paverify.model.common.resolveFormat
 import com.darkrockstudios.apps.c2paverify.model.share.ReportBadgeStyle
 import com.darkrockstudios.apps.c2paverify.model.share.ReportOverlay
 import com.darkrockstudios.apps.c2paverify.model.share.ReportTone
+import io.github.aakira.napier.Napier
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -63,9 +68,11 @@ class ReportRendererDataSource(
 	 * resolution.
 	 */
 	private suspend fun decodeScaled(image: ImageSource): Bitmap? {
+		if (image.resolveFormat()?.kind == AssetKind.VIDEO) return posterFrame(image)
 		val data: Any = when (image) {
 			is ImageSource.Bytes -> image.bytes
 			is ImageSource.Path -> File(image.path)
+			is ImageSource.Content -> image.uri
 		}
 		val request = ImageRequest.Builder(context)
 			.data(data)
@@ -76,6 +83,35 @@ class ReportRendererDataSource(
 			?.image
 			?.toBitmap()
 			?.copy(Bitmap.Config.ARGB_8888, /* isMutable = */ false)
+	}
+
+	/**
+	 * The frame a video opens on, standing in for the asset the way the photo does for a still. A
+	 * video has no single image to report on, and the first frame is the one the viewer was looking
+	 * at before they hit share.
+	 */
+	private fun posterFrame(image: ImageSource): Bitmap? {
+		val retriever = MediaMetadataRetriever()
+		return try {
+			when (image) {
+				is ImageSource.Content -> retriever.setDataSource(context, image.uri.toUri())
+				is ImageSource.Path -> retriever.setDataSource(image.path)
+				is ImageSource.Bytes -> return null
+			}
+			val frame = retriever.getScaledFrameAtTime(
+				0L,
+				MediaMetadataRetriever.OPTION_CLOSEST_SYNC,
+				MAX_EDGE_PX,
+				MAX_EDGE_PX,
+			) ?: return null
+			frame.copy(Bitmap.Config.ARGB_8888, /* isMutable = */ false)
+				.also { if (it !== frame) frame.recycle() }
+		} catch (e: Exception) {
+			Napier.w(tag = TAG, throwable = e) { "Unable to extract a poster frame" }
+			null
+		} finally {
+			retriever.release()
+		}
 	}
 
 	private fun drawReport(photo: Bitmap, overlay: ReportOverlay): Bitmap {
@@ -304,6 +340,7 @@ class ReportRendererDataSource(
 	}
 
 	private companion object {
+		const val TAG = "ReportRenderer"
 		const val MAX_EDGE_PX = 2048
 		// Tint strength (~20% over the dark panel) for the hero band behind the headline.
 		const val HERO_BAND_ALPHA = 0x33

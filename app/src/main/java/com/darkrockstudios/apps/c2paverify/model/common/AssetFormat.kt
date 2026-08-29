@@ -196,15 +196,17 @@ object AssetFormats {
 /**
  * Identifies [this] for the C2PA reader, preferring leading bytes over the declared type.
  *
- * [ImageSource.Path] is matched on its declared type and file extension only. Reading its head
- * would need file I/O, which this layer stays clear of. Every source the app builds today is
- * [ImageSource.Bytes], which carries its own header.
+ * [ImageSource.Bytes] carries the whole asset and [ImageSource.Content] carries a pre-read head, so
+ * both get sniffed. [ImageSource.Path] is matched on its declared type and file extension only:
+ * reading its head would need file I/O, which this layer stays clear of.
  */
 fun ImageSource.resolveFormat(): AssetFormat? = AssetFormats.resolve(
 	mimeType = mimeType,
 	fileName = (this as? ImageSource.Path)?.path,
-	header = (this as? ImageSource.Bytes)?.bytes?.let {
-		it.copyOf(minOf(AssetFormats.HEADER_BYTES, it.size))
+	header = when (this) {
+		is ImageSource.Bytes -> bytes.copyOf(minOf(AssetFormats.HEADER_BYTES, bytes.size))
+		is ImageSource.Content -> header
+		is ImageSource.Path -> null
 	},
 )
 
@@ -225,6 +227,30 @@ fun AssetFormat.isRenderableBy(sdkInt: Int): Boolean = when (token) {
 	"image/svg+xml" -> true
 	else -> false
 }
+
+/**
+ * Whether the platform's media stack can play this format.
+ *
+ * Separate from [isRenderableBy], which asks whether the asset can be turned into a bitmap. A video
+ * is presented by a player, not an image loader, and the two answers never coincide.
+ *
+ * Scoped to the BMFF video family, which shares one extractor. AVI and the audio formats are read
+ * for provenance but have no preview.
+ */
+fun AssetFormat.isPlayable(): Boolean = token in PLAYABLE_TOKENS
+
+/**
+ * Whether an asset of this format is read by streaming rather than loaded whole.
+ *
+ * Video and audio run to hundreds of megabytes, which no heap array survives, and the asset is
+ * opened three times over an inspection (read, share, re-read when trust rules change). Stills stay
+ * on the whole-file path, where the bytes are already in hand and every content provider can serve
+ * them, seekable or not.
+ */
+val AssetFormat.isStreamed: Boolean
+	get() = kind == AssetKind.VIDEO || kind == AssetKind.AUDIO
+
+private val PLAYABLE_TOKENS = setOf("video/mp4", "video/x-m4v", "video/quicktime")
 
 /** `Build.VERSION_CODES.S`, spelled out because this layer holds no `android.*` imports. */
 private const val SDK_AVIF = 31

@@ -26,7 +26,8 @@ import java.io.File
  */
 class C2paReaderCaptureTest {
 
-	private val dataSource = AndroidC2paReaderDataSource()
+	private val dataSource =
+		AndroidC2paReaderDataSource(InstrumentationRegistry.getInstrumentation().targetContext)
 
 	private val samples = listOf(
 		"valid-C.jpg",
