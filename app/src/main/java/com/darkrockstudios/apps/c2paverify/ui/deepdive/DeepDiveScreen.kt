@@ -61,6 +61,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
@@ -83,6 +84,10 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 
 private val prettyJson = Json { prettyPrint = true; prettyPrintIndent = "  " }
+
+object DeepDive {
+	const val TAG_LIST = "deep_dive_list"
+}
 
 /**
  * Full manifest exploration: manifest metadata, signature/certificate, assertions, ingredients,
@@ -129,7 +134,8 @@ fun DeepDiveScreen(
 		// (signer, serial, hashes, JSON…). Pure labels are excluded via DisableSelection below.
 		SelectionContainer(Modifier.fillMaxSize()) {
 			LazyColumn(
-				modifier = Modifier.fillMaxSize().consumeWindowInsets(innerPadding),
+				modifier = Modifier.fillMaxSize().consumeWindowInsets(innerPadding)
+					.testTag(DeepDive.TAG_LIST),
 				contentPadding = innerPadding + PaddingValues(16.dp),
 				verticalArrangement = Arrangement.spacedBy(12.dp),
 			) {
