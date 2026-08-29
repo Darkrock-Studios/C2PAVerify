@@ -10,6 +10,7 @@
     <string name="example_trusted_subtitle">Signed by a trusted source</string>
     <string name="example_ai_title">AI-generated</string>
     <string name="example_ai_subtitle">Flagged as AI-generated content</string>
+    <string name="about_studio_button">Made by Dark Rock Studios</string>
 
     <!-- Viewer -->
     <string name="viewer_title">Inspect photo</string>

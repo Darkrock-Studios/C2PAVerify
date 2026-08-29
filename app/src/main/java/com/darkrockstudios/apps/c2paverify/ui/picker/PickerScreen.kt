@@ -25,6 +25,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -81,6 +82,7 @@ fun PickerScreen(
 	onImagePicked: (String) -> Unit,
 	onOpenTrust: () -> Unit,
 	onShowOnboarding: () -> Unit,
+	onShowStudio: () -> Unit,
 ) {
 	// Deliberately ACTION_OPEN_DOCUMENT (SAF), NOT the Photo Picker: the picker only exposes
 	// pre-redacted picker:// URIs. SAF can still hand back a media-backed URI that MediaProvider
@@ -166,6 +168,13 @@ fun PickerScreen(
 					ExampleCard(
 						example = example,
 						onClick = { onImagePicked(example.assetUri) },
+					)
+				}
+
+				TextButton(onClick = onShowStudio, modifier = Modifier.padding(top = 16.dp)) {
+					Text(
+						text = stringResource(R.string.about_studio_button),
+						style = MaterialTheme.typography.bodySmall,
 					)
 				}
 			}

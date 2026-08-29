@@ -86,6 +86,8 @@ android {
 	}
 	buildFeatures {
 		compose = true
+		// VERSION_NAME feeds the Cairn about screen.
+		buildConfig = true
 	}
 	packaging {
 		jniLibs {
@@ -183,6 +185,9 @@ dependencies {
 	ksp(libs.androidx.room.compiler)
 	implementation(libs.androidx.datastore.preferences)
 	implementation(libs.napier)
+
+	// Dark Rock Studios about screen
+	implementation(libs.cairn)
 
 	// Unit tests
 	testImplementation(libs.junit)

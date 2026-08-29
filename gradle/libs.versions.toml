@@ -20,6 +20,7 @@ ktor = "3.2.2"
 coil = "3.2.0"
 telephoto = "0.19.0"
 napier = "2.7.1"
+cairn = "0.2.2"
 datastore = "1.1.7"
 material3Adaptive = "1.1.0"
 navigationCompose = "2.9.0"
@@ -88,6 +89,9 @@ c2pa-android = { group = "com.github.contentauth", name = "c2pa-android", versio
 # Storage (DataStore) & logging
 androidx-datastore-preferences = { group = "androidx.datastore", name = "datastore-preferences", version.ref = "datastore" }
 napier = { group = "io.github.aakira", name = "napier", version.ref = "napier" }
+
+# Dark Rock Studios about screen
+cairn = { group = "com.darkrockstudios", name = "cairn", version.ref = "cairn" }
 
 # Test
 turbine = { group = "app.cash.turbine", name = "turbine", version.ref = "turbine" }
