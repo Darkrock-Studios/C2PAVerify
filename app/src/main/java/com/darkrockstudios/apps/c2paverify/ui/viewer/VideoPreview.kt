@@ -7,6 +7,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -18,6 +19,7 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.util.ExperimentalApi
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.ui.compose.SURFACE_TYPE_TEXTURE_VIEW
 import androidx.media3.ui.compose.material3.Player
 import kotlinx.coroutines.delay
 
@@ -25,19 +27,26 @@ import kotlinx.coroutines.delay
  * Plays [uri] in place of the still-image preview. The player reads the URI directly, the same way
  * the image path hands it to Coil, so nothing is copied to show it.
  *
- * Controls are hoisted: they overlap the summary card at the bottom of the viewer, so the caller
- * owns [showControls] and moves the card out of their way while they are up.
+ * Controls show on entry so the asset is visibly playable, then fade on their own; tapping brings
+ * them back. They are drawn along the bottom edge of [modifier]'s bounds, so the caller keeps that
+ * clear of the summary card.
  */
 @OptIn(markerClass = [UnstableApi::class, ExperimentalApi::class])
 @Composable
 fun VideoPreview(
 	uri: String,
-	showControls: Boolean,
-	onToggleControls: () -> Unit,
 	modifier: Modifier = Modifier,
 ) {
 	val context = LocalContext.current
 	var position by rememberSaveable(uri) { mutableLongStateOf(0L) }
+	var showControls by rememberSaveable(uri) { mutableStateOf(true) }
+
+	LaunchedEffect(showControls) {
+		if (showControls) {
+			delay(CONTROLS_VISIBLE_MS)
+			showControls = false
+		}
+	}
 
 	val player = remember(uri) {
 		ExoPlayer.Builder(context).build().apply {
@@ -67,10 +76,17 @@ fun VideoPreview(
 	Player(
 		player = player,
 		modifier = modifier.pointerInput(Unit) {
-			detectTapGestures { onToggleControls() }
+			detectTapGestures { showControls = !showControls }
 		},
+		// A SurfaceView is punched through the window rather than drawn in it, and on API 34 it loses
+		// its buffer when the composition around it changes, leaving the video black. A texture
+		// surface is composited normally and survives that.
+		surfaceType = SURFACE_TYPE_TEXTURE_VIEW,
 		showControls = showControls,
 	)
 }
 
 private const val POSITION_SAVE_INTERVAL_MS = 1_000L
+
+/** How long the transport controls stay up before fading, matching the usual player convention. */
+private const val CONTROLS_VISIBLE_MS = 3_000L

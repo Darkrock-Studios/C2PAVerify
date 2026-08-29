@@ -6,8 +6,11 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
@@ -45,6 +48,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
@@ -77,6 +81,9 @@ import kotlin.math.roundToInt
  * C2PA summary card once inspection completes. Once loaded, a Share action renders the photo with a
  * verification overlay and hands it to the system share sheet.
  */
+/** Gap between the summary card and the bottom of the window. */
+private val OverlayBottomPadding = 24.dp
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ViewerScreen(
@@ -123,18 +130,21 @@ fun ViewerScreen(
 	val canPreview = assetFormat?.isRenderableBy(Build.VERSION.SDK_INT) ?: true
 	val canPlay = assetFormat?.isPlayable() == true
 
-	// The player's transport controls sit where the summary card does, so the card gets out of their
-	// way on the same terms as it does for a zoomed photo.
-	var controlsVisible by rememberSaveable { mutableStateOf(true) }
-
 	// While the photo is zoomed in (inspecting), slide the summary card down to a peek so it's out
 	// of the way; bring it back when the photo returns to its fit/unzoomed state.
 	val zoomState = rememberZoomableImageState()
 	val peeking by remember {
 		derivedStateOf { (zoomState.zoomableState.zoomFraction ?: 0f) > 0.02f }
 	}
-	val peekTarget = if (canPlay) controlsVisible else peeking
-	val peekProgress by animateFloatAsState(if (peekTarget) 1f else 0f, label = "summaryPeek")
+	val peekProgress by animateFloatAsState(if (peeking) 1f else 0f, label = "summaryPeek")
+
+	// The player draws its own transport controls along its bottom edge, which is where the summary
+	// card sits. Reserving the card's footprint keeps the two apart, so the verdict stays readable
+	// and the seek bar stays reachable without either having to move.
+	var summaryHeight by remember { mutableStateOf(0.dp) }
+	val summaryFootprint = summaryHeight +
+		OverlayBottomPadding +
+		WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
 
 	Scaffold(
 		snackbarHost = { SnackbarHost(snackbarHostState) },
@@ -177,9 +187,7 @@ fun ViewerScreen(
 
 				canPlay -> VideoPreview(
 					uri = imageUri,
-					showControls = controlsVisible,
-					onToggleControls = { controlsVisible = !controlsVisible },
-					modifier = Modifier.fillMaxSize(),
+					modifier = Modifier.fillMaxSize().padding(bottom = summaryFootprint),
 				)
 
 				canPreview -> ZoomableAsyncImage(
@@ -196,10 +204,11 @@ fun ViewerScreen(
 				state = state,
 				onOpenDetails = onOpenDetails,
 				peekFraction = { peekProgress },
+				onHeightChanged = { summaryHeight = it },
 				modifier = Modifier
 					.align(Alignment.BottomCenter)
 					.navigationBarsPadding()
-					.padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 24.dp)
+					.padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = OverlayBottomPadding)
 					.widthIn(max = 520.dp),
 			)
 		}
@@ -249,6 +258,7 @@ private fun InspectionOverlay(
 	state: InspectionUiState,
 	onOpenDetails: (() -> Unit)?,
 	peekFraction: () -> Float,
+	onHeightChanged: (Dp) -> Unit,
 	modifier: Modifier = Modifier,
 ) {
 	when (state) {
@@ -264,7 +274,10 @@ private fun InspectionOverlay(
 				summary = state.result.summary,
 				onViewDetails = onOpenDetails?.takeIf { state.result.manifest != null },
 				modifier = modifier
-					.onSizeChanged { cardHeight = it.height }
+					.onSizeChanged {
+						cardHeight = it.height
+						onHeightChanged(with(density) { it.height.toDp() })
+					}
 					.offset {
 						val hideBy = (cardHeight - peekVisiblePx).coerceAtLeast(0f)
 						IntOffset(x = 0, y = (peekFraction() * hideBy).roundToInt())

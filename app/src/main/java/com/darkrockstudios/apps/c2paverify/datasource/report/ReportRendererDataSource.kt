@@ -27,6 +27,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.IOException
+import kotlin.math.roundToInt
 
 /**
  * Renders a shareable "verification report": the inspected photo with a [ReportOverlay] panel
@@ -89,6 +90,10 @@ class ReportRendererDataSource(
 	 * The frame a video opens on, standing in for the asset the way the photo does for a still. A
 	 * video has no single image to report on, and the first frame is the one the viewer was looking
 	 * at before they hit share.
+	 *
+	 * As on the image path, [MAX_EDGE_PX] is a ceiling rather than a target: asking the retriever for
+	 * a scaled frame larger than the source gets one, so anything already within the ceiling is taken
+	 * at its own resolution.
 	 */
 	private fun posterFrame(image: ImageSource): Bitmap? {
 		val retriever = MediaMetadataRetriever()
@@ -98,12 +103,7 @@ class ReportRendererDataSource(
 				is ImageSource.Path -> retriever.setDataSource(image.path)
 				is ImageSource.Bytes -> return null
 			}
-			val frame = retriever.getScaledFrameAtTime(
-				0L,
-				MediaMetadataRetriever.OPTION_CLOSEST_SYNC,
-				MAX_EDGE_PX,
-				MAX_EDGE_PX,
-			) ?: return null
+			val frame = retriever.scaledDownFrame() ?: return null
 			frame.copy(Bitmap.Config.ARGB_8888, /* isMutable = */ false)
 				.also { if (it !== frame) frame.recycle() }
 		} catch (e: Exception) {
@@ -113,6 +113,32 @@ class ReportRendererDataSource(
 			retriever.release()
 		}
 	}
+
+	/** The opening frame, shrunk to fit [MAX_EDGE_PX] only if it exceeds it. */
+	private fun MediaMetadataRetriever.scaledDownFrame(): Bitmap? {
+		val rotation = metadataInt(MediaMetadataRetriever.METADATA_KEY_VIDEO_ROTATION) ?: 0
+		val rawWidth = metadataInt(MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH)
+		val rawHeight = metadataInt(MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT)
+		// A frame comes back already rotated, so a quarter turn swaps the dimensions it reports.
+		val quarterTurned = rotation == 90 || rotation == 270
+		val width = if (quarterTurned) rawHeight else rawWidth
+		val height = if (quarterTurned) rawWidth else rawHeight
+
+		val longestEdge = maxOf(width ?: 0, height ?: 0)
+		if (width == null || height == null || longestEdge <= MAX_EDGE_PX) {
+			return getFrameAtTime(0L, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
+		}
+		val scale = MAX_EDGE_PX.toFloat() / longestEdge
+		return getScaledFrameAtTime(
+			0L,
+			MediaMetadataRetriever.OPTION_CLOSEST_SYNC,
+			(width * scale).roundToInt().coerceAtLeast(1),
+			(height * scale).roundToInt().coerceAtLeast(1),
+		)
+	}
+
+	private fun MediaMetadataRetriever.metadataInt(key: Int): Int? =
+		extractMetadata(key)?.toIntOrNull()
 
 	private fun drawReport(photo: Bitmap, overlay: ReportOverlay): Bitmap {
 		val width = photo.width
