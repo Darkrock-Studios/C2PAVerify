@@ -106,12 +106,24 @@ class ReportRendererDataSource(
 			val frame = retriever.scaledDownFrame() ?: return null
 			frame.copy(Bitmap.Config.ARGB_8888, /* isMutable = */ false)
 				.also { if (it !== frame) frame.recycle() }
-		} catch (e: Exception) {
-			Napier.w(tag = TAG, throwable = e) { "Unable to extract a poster frame" }
-			null
+		} catch (e: IOException) {
+			noFrame(e)
+		} catch (e: IllegalArgumentException) {
+			noFrame(e)
+		} catch (e: IllegalStateException) {
+			noFrame(e)
 		} finally {
 			retriever.release()
 		}
+	}
+
+	/**
+	 * Reports that no frame could be taken. Anything the retriever throws beyond this is caught by
+	 * the share action itself, which already degrades to "couldn't build a report image".
+	 */
+	private fun noFrame(cause: Throwable): Bitmap? {
+		Napier.w(tag = TAG, throwable = cause) { "Unable to extract a poster frame" }
+		return null
 	}
 
 	/** The opening frame, shrunk to fit [MAX_EDGE_PX] only if it exceeds it. */

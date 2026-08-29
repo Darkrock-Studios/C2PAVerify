@@ -117,7 +117,7 @@ class AssetSourceDataSource(private val context: Context) {
 		val file = File(dir, STREAMED_FILE)
 		try {
 			file.outputStream().use { input.copyTo(it) }
-		} catch (e: Exception) {
+		} catch (e: IOException) {
 			file.delete()
 			throw e
 		}

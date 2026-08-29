@@ -4,6 +4,7 @@ import android.content.Context
 import org.junit.Assert.assertEquals
 import org.junit.Assume.assumeNoException
 import java.io.File
+import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
 
@@ -43,7 +44,7 @@ object UpstreamVideo {
 			} finally {
 				connection.disconnect()
 			}
-		} catch (e: Exception) {
+		} catch (e: IOException) {
 			cached.delete()
 			assumeNoException("Could not fetch $URL; skipping", e)
 		}
