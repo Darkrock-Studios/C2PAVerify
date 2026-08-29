@@ -12,9 +12,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.runtime.snapshots.Snapshot
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
-import androidx.lifecycle.compose.LifecycleStartEffect
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.media3.common.MediaItem
 import androidx.media3.common.util.ExperimentalApi
 import androidx.media3.common.util.UnstableApi
@@ -51,7 +53,9 @@ fun VideoPreview(
 	val player = remember(uri) {
 		ExoPlayer.Builder(context).build().apply {
 			setMediaItem(MediaItem.fromUri(uri))
-			seekTo(position)
+			// Read without observing: this runs in a composition scope, and the periodic save below
+			// would otherwise invalidate the whole player subtree once a second.
+			seekTo(Snapshot.withoutReadObservation { position })
 			prepare()
 		}
 	}
@@ -65,9 +69,9 @@ fun VideoPreview(
 		}
 	}
 
-	LifecycleStartEffect(player) {
-		onStopOrDispose { player.pause() }
-	}
+	// ON_STOP rather than a start effect: the start effect's teardown also runs on disposal, where it
+	// would pause a player the DisposableEffect below has already released.
+	LifecycleEventEffect(Lifecycle.Event.ON_STOP) { player.pause() }
 
 	DisposableEffect(player) {
 		onDispose { player.release() }
@@ -75,7 +79,7 @@ fun VideoPreview(
 
 	Player(
 		player = player,
-		modifier = modifier.pointerInput(Unit) {
+		modifier = modifier.pointerInput(uri) {
 			detectTapGestures { showControls = !showControls }
 		},
 		// A SurfaceView is punched through the window rather than drawn in it, and on API 34 it loses

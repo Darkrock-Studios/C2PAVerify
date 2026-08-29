@@ -124,8 +124,18 @@ class ReportRendererDataSource(
 		val width = if (quarterTurned) rawHeight else rawWidth
 		val height = if (quarterTurned) rawWidth else rawHeight
 
-		val longestEdge = maxOf(width ?: 0, height ?: 0)
-		if (width == null || height == null || longestEdge <= MAX_EDGE_PX) {
+		// Without dimensions the ceiling is all there is to go on: an unscaled 8K frame is ~140 MB,
+		// and this bitmap is copied twice more before the report is written.
+		if (width == null || height == null) {
+			return getScaledFrameAtTime(
+				0L,
+				MediaMetadataRetriever.OPTION_CLOSEST_SYNC,
+				MAX_EDGE_PX,
+				MAX_EDGE_PX,
+			)
+		}
+		val longestEdge = maxOf(width, height)
+		if (longestEdge <= MAX_EDGE_PX) {
 			return getFrameAtTime(0L, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
 		}
 		val scale = MAX_EDGE_PX.toFloat() / longestEdge

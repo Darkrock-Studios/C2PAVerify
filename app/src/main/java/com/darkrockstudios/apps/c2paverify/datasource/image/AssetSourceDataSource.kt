@@ -65,7 +65,12 @@ class AssetSourceDataSource(private val context: Context) {
 			val pushback = PushbackInputStream(input, AssetFormats.HEADER_BYTES)
 			val header = pushback.readHeader()
 			pushback.unread(header)
-			if (AssetFormats.resolve(mimeType, header = header)?.isStreamed == true) {
+			val format = AssetFormats.resolve(mimeType, uri.lastPathSegment, header)
+			// Nothing identified it, so the reader will refuse it on name alone and its bytes are
+			// never wanted. The picker accepts every video type, including containers this app cannot
+			// identify (Matroska, WebM), and pulling a gigabyte of one into the heap would crash long
+			// before anything got to refuse it.
+			if (format == null || format.isStreamed) {
 				ImageSource.Content(uri = readUri.toString(), mimeType = mimeType, header = header)
 			} else {
 				ImageSource.Bytes(bytes = pushback.readBytes(), mimeType = mimeType)

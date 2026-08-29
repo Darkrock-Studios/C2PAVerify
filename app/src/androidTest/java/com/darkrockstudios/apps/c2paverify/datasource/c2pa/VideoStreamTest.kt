@@ -6,6 +6,8 @@ import com.darkrockstudios.apps.c2paverify.model.common.ImageSource
 import com.darkrockstudios.apps.c2paverify.model.common.resolveFormat
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Assume.assumeNoException
 import org.junit.Test
@@ -76,6 +78,26 @@ class VideoStreamTest {
 
 		val photo = assetSource.read("file:///android_asset/c2pa/examples/trusted.jpg")
 		assertTrue("expected bytes, got $photo", photo is ImageSource.Bytes)
+	}
+
+	/**
+	 * A container the app cannot name is still streamed rather than read whole. It is refused by the
+	 * reader either way, but a gigabyte of Matroska pulled into the heap first would crash before
+	 * anything got the chance to refuse it.
+	 */
+	@Test
+	fun anUnidentifiableVideoIsStreamedRatherThanLoaded() = runBlocking {
+		val file = File(appContext.cacheDir, "unidentifiable.mkv").apply {
+			// An EBML header, which the format sniffer has no entry for.
+			writeBytes(byteArrayOf(0x1A, 0x45, 0xDF.toByte(), 0xA3.toByte()) + ByteArray(64))
+		}
+		val source = AssetSourceDataSource(appContext).read("file://${file.absolutePath}")
+
+		assertTrue("expected a streamed source, got $source", source is ImageSource.Content)
+		assertNull("the app must not claim to identify it", source.resolveFormat())
+		assertThrows(C2paReadException::class.java) { runBlocking { dataSource.read(source) } }
+		file.delete()
+		Unit
 	}
 
 	/**

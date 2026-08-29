@@ -39,7 +39,7 @@ class AndroidC2paReaderDataSource(private val context: Context) : C2paReaderData
 		withContext(Dispatchers.IO) {
 			val format = requireFormat(image)
 			buildStream(image).use { source ->
-				try {
+				val read = try {
 					openAndExtract(format.token, source.stream, trust)
 				} catch (e: CancellationException) {
 					throw e
@@ -55,6 +55,13 @@ class AndroidC2paReaderDataSource(private val context: Context) : C2paReaderData
 						throw C2paReadException("Failed to read C2PA data: ${e.message}", e)
 					}
 				}
+				// A read that failed part way through looks to the reader like a shorter file, which
+				// for a hard binding comes back as a hash mismatch. Reporting that as a verdict would
+				// accuse an intact asset of being tampered with, so the I/O failure wins.
+				source.readFailure?.let {
+					throw C2paReadException("Reading the file failed part way through", it)
+				}
+				read
 			}
 		}
 
@@ -97,10 +104,12 @@ class AndroidC2paReaderDataSource(private val context: Context) : C2paReaderData
 	)
 
 	private fun buildStream(image: ImageSource): AssetStream = when (image) {
-		is ImageSource.Bytes -> AssetStream(DataStream(image.bytes), backing = null)
+		is ImageSource.Bytes -> AssetStream(backing = null, stream = DataStream(image.bytes))
 
-		is ImageSource.Path ->
-			AssetStream(FileStream(File(image.path), FileStream.Mode.READ), backing = null)
+		is ImageSource.Path -> AssetStream(
+			backing = null,
+			stream = FileStream(File(image.path), FileStream.Mode.READ),
+		)
 
 		is ImageSource.Content -> contentStream(image.uri)
 	}
@@ -126,15 +135,16 @@ class AndroidC2paReaderDataSource(private val context: Context) : C2paReaderData
 		val input = ParcelFileDescriptor.AutoCloseInputStream(descriptor)
 		return try {
 			val channel = input.channel
+			val stream = AssetStream(backing = input)
 			val window = AssetWindow(start = 0L, length = size) { buffer, count, position ->
 				runCatching { channel.read(ByteBuffer.wrap(buffer, 0, count), position) }
-					.onFailure { Napier.w(tag = TAG, throwable = it) { "Read failed at $position" } }
+					.onFailure {
+						Napier.w(tag = TAG, throwable = it) { "Read failed at $position" }
+						stream.readFailure = it
+					}
 					.getOrDefault(0)
 			}
-			AssetStream(
-				stream = CallbackStream(reader = window::read, seeker = window::seek),
-				backing = input,
-			)
+			stream.also { it.stream = CallbackStream(reader = window::read, seeker = window::seek) }
 		} catch (e: Exception) {
 			input.close()
 			throw C2paReadException("Unable to read $uriString", e)
@@ -145,10 +155,21 @@ class AndroidC2paReaderDataSource(private val context: Context) : C2paReaderData
 	 * A reader [stream] together with the platform handle it reads through, so both are released by
 	 * one [close] whether the reader finished or threw.
 	 */
-	private class AssetStream(val stream: Stream, private val backing: Closeable?) : Closeable {
+	private class AssetStream(private val backing: Closeable?, stream: Stream? = null) : Closeable {
+
+		lateinit var stream: Stream
+
+		/** Set when the platform failed to serve a read, so a short read is not read as the file's end. */
+		@Volatile
+		var readFailure: Throwable? = null
+
+		init {
+			stream?.let { this.stream = it }
+		}
+
 		override fun close() {
 			try {
-				stream.close()
+				if (::stream.isInitialized) stream.close()
 			} finally {
 				backing?.close()
 			}

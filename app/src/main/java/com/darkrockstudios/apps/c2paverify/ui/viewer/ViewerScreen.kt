@@ -127,7 +127,8 @@ fun ViewerScreen(
 		imageUri?.let { AssetFormats.fromFileName(it.substringBefore('?')) }
 	}
 	val assetFormat = loaded?.result?.format ?: guessedFormat
-	val canPreview = assetFormat?.isRenderableBy(Build.VERSION.SDK_INT) ?: true
+	val canPreview = assetFormat?.isRenderableBy(Build.VERSION.SDK_INT)
+		?: (state !is InspectionUiState.Error)
 	val canPlay = assetFormat?.isPlayable() == true
 
 	// While the photo is zoomed in (inspecting), slide the summary card down to a peek so it's out
