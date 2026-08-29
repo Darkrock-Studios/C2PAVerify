@@ -1,0 +1,1 @@
+Fixed the details view jumping back to the top after you choose to trust or distrust a signer.
