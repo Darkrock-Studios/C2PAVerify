@@ -12,6 +12,7 @@ import androidx.core.content.FileProvider
 import coil3.ImageLoader
 import coil3.request.ImageRequest
 import coil3.request.SuccessResult
+import coil3.size.Precision
 import coil3.toBitmap
 import com.darkrockstudios.apps.c2paverify.model.common.ImageSource
 import com.darkrockstudios.apps.c2paverify.model.share.ReportBadgeStyle
@@ -56,9 +57,10 @@ class ReportRendererDataSource(
 	 * display can also be drawn into a report. SVG has no BitmapFactory path at all, and letting the
 	 * two diverge is what made Share fail on assets that were visibly on screen.
 	 *
-	 * [MAX_EDGE_PX] is a request, not a bound: Coil subsamples by powers of two, so a 5504px source
-	 * comes back at 2752px. That is the same OOM guard the hand-rolled subsampling gave, just
-	 * expressed as a target size.
+	 * [MAX_EDGE_PX] is a ceiling, not a target. Coil infers [Precision.EXACT] whenever a size is set
+	 * without a view to scale the result, which upscales anything smaller than the request;
+	 * [Precision.INEXACT] is what keeps the size an OOM guard and leaves small assets at their own
+	 * resolution.
 	 */
 	private suspend fun decodeScaled(image: ImageSource): Bitmap? {
 		val data: Any = when (image) {
@@ -68,6 +70,7 @@ class ReportRendererDataSource(
 		val request = ImageRequest.Builder(context)
 			.data(data)
 			.size(MAX_EDGE_PX, MAX_EDGE_PX)
+			.precision(Precision.INEXACT)
 			.build()
 		return (imageLoader.execute(request) as? SuccessResult)
 			?.image

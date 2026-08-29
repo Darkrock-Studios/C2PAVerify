@@ -130,6 +130,19 @@ class AssetFormatTest {
 	}
 
 	@Test
+	fun `a tiff byte-order mark defers to the declared type to name the raw format`() {
+		// DNG, ARW and NEF are TIFF underneath, so the mark alone cannot say which of them it is.
+		val bom = bytes(0x49, 0x49, 0x2A, 0x00)
+		assertEquals(
+			"image/x-adobe-dng",
+			AssetFormats.resolve(mimeType = "image/x-adobe-dng", header = bom)?.token,
+		)
+		assertEquals("image/x-sony-arw", AssetFormats.resolve(fileName = "shot.arw", header = bom)?.token)
+		assertEquals("image/tiff", AssetFormats.resolve(header = bom)?.token)
+		assertEquals("image/tiff", AssetFormats.resolve(mimeType = "image/png", header = bom)?.token)
+	}
+
+	@Test
 	fun `svg is recognised from its markup`() {
 		assertEquals("image/svg+xml", AssetFormats.fromHeader(ascii("<?xml version=\"1.0\"?>"))?.token)
 		assertEquals("image/svg+xml", AssetFormats.fromHeader(ascii("<svg xmlns=\"...\">"))?.token)

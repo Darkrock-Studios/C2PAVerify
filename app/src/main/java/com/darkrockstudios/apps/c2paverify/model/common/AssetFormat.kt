@@ -56,6 +56,9 @@ object AssetFormats {
 	/** Formats sharing the BMFF parser, whose container brands alone cannot separate them. */
 	private val bmff = setOf(AVIF, HEIC, HEIF, MP4, MOV, M4V, M4A)
 
+	/** Raw formats built on TIFF, which carry a plain TIFF byte-order mark and nothing more. */
+	private val tiffFamily = setOf(TIFF, DNG, ARW, NEF)
+
 	/**
 	 * Declared MIME types, including spellings Android emits that the reader itself does not accept
 	 * (`image/jpg`, the HEIF sequence types) and which therefore have to be translated rather than
@@ -131,9 +134,14 @@ object AssetFormats {
 	): AssetFormat? {
 		val declared = fromMimeType(mimeType) ?: fromFileName(fileName)
 		val sniffed = fromHeader(header) ?: return declared
-		// Every BMFF variant shares one container, and the generic brands ("isom", "mp42") are used
-		// by video and audio alike, so only the declared type separates an .m4a from an .mp4.
-		return if (sniffed == MP4 && declared in bmff) declared else sniffed
+		// Two container signatures are shared by a whole family: the generic BMFF brands ("isom",
+		// "mp42") are used by video and audio alike, and a TIFF byte-order mark is all a raw file
+		// carries. In both cases only the declared type separates the members, so it wins.
+		return when {
+			sniffed == MP4 && declared in bmff -> declared
+			sniffed == TIFF && declared in tiffFamily -> declared
+			else -> sniffed
+		}
 	}
 
 	fun fromMimeType(mimeType: String?): AssetFormat? =
