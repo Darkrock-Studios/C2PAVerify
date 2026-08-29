@@ -9,6 +9,9 @@ import com.darkrockstudios.apps.c2paverify.repository.C2paManifestParser
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertThrows
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
 
@@ -31,8 +34,11 @@ class C2paReaderCaptureTest {
 		"invalid-sig.jpg",
 		"tampered-dat.jpg",
 		"no-manifest.jpg",
-		"no-manifest-tiff.tif",
-		"no-manifest-avif.avif",
+		"upstream/png_valid.png",
+		"upstream/webp_valid.webp",
+		"upstream/gif_valid.gif",
+		"upstream/tiff_valid.tiff",
+		"upstream/avif_valid.avif",
 	)
 
 	@Test
@@ -47,7 +53,7 @@ class C2paReaderCaptureTest {
 		for (asset in samples) {
 			val bytes = testCtx.assets.open("c2pa/$asset").use { it.readBytes() }
 			val result = runCatching { dataSource.read(ImageSource.Bytes(bytes, mimeType = null)) }
-			val base = asset.substringBeforeLast('.')
+			val base = asset.substringAfterLast('/').substringBeforeLast('.')
 			result.onSuccess { read ->
 				when (read) {
 					is C2paRawRead.NoManifest -> {
@@ -73,27 +79,57 @@ class C2paReaderCaptureTest {
 	}
 
 	/**
-	 * Asserts that formats beyond JPEG reach the right parser with nothing but their own bytes to go
-	 * on. Each of these used to be handed to the JPEG parser by the old `image/jpeg` default, which
-	 * reported a perfectly good TIFF or AVIF as corrupt rather than as simply unsigned.
+	 * Every still-image format the reader claims to handle, signed and unsigned, identified from
+	 * nothing but its own bytes. Each of these used to be handed to the JPEG parser by the old
+	 * `image/jpeg` default, which reported a perfectly good PNG or TIFF as corrupt rather than as
+	 * simply unsigned.
+	 *
+	 * The signed fixtures are asserted only to *parse*. Their test certificates expired in the
+	 * 2000s, so today every one of them validates as Invalid whatever the format; the hard binding
+	 * still matches. A verdict here would measure the clock and the trust list, not the parser.
 	 */
 	@Test
-	fun identifiesNonJpegFormatsFromBytesAlone() = runBlocking {
+	fun everyStillImageFormatReachesItsParser() = runBlocking {
 		val testCtx = InstrumentationRegistry.getInstrumentation().context
 		listOf(
-			"no-manifest.jpg" to "image/jpeg",
-			"no-manifest-tiff.tif" to "image/tiff",
-			"no-manifest-avif.avif" to "image/avif",
-		).forEach { (asset, expectedToken) ->
+			Triple("upstream/png_valid.png", "image/png", true),
+			Triple("upstream/no_c2pa_006.png", "image/png", false),
+			Triple("upstream/webp_valid.webp", "image/webp", true),
+			Triple("upstream/no_c2pa_040.webp", "image/webp", false),
+			Triple("upstream/gif_valid.gif", "image/gif", true),
+			Triple("upstream/no_c2pa_041.gif", "image/gif", false),
+			Triple("upstream/tiff_valid.tiff", "image/tiff", true),
+			Triple("upstream/no_c2pa_018.tiff", "image/tiff", false),
+			Triple("upstream/avif_valid.avif", "image/avif", true),
+			Triple("upstream/no_c2pa_008.avif", "image/avif", false),
+			Triple("no-manifest.jpg", "image/jpeg", false),
+		).forEach { (asset, expectedToken, signed) ->
 			val bytes = testCtx.assets.open("c2pa/$asset").use { it.readBytes() }
 			val source = ImageSource.Bytes(bytes, mimeType = null)
 
 			assertEquals("$asset identified from its header", expectedToken, source.resolveFormat()?.token)
 
-			// These carry no manifest; the point is that the reader says so, rather than failing to
-			// parse them at all.
-			assertEquals("$asset read cleanly", C2paRawRead.NoManifest, dataSource.read(source))
+			val read = dataSource.read(source)
+			if (signed) {
+				assertTrue("$asset should yield a manifest, got $read", read is C2paRawRead.Manifest)
+			} else {
+				assertEquals("$asset should read cleanly as unsigned", C2paRawRead.NoManifest, read)
+			}
 		}
+	}
+
+	/**
+	 * Our native library is built without the `pdf` feature, so PDF has no parser to reach. It has to
+	 * be refused outright rather than guessed into some other format's parser.
+	 */
+	@Test
+	fun pdfIsRefusedRatherThanGuessed() {
+		val testCtx = InstrumentationRegistry.getInstrumentation().context
+		val bytes = testCtx.assets.open("c2pa/upstream/pdf_valid.pdf").use { it.readBytes() }
+		val source = ImageSource.Bytes(bytes, mimeType = "application/pdf")
+
+		assertNull("PDF must not resolve to a format we cannot parse", source.resolveFormat())
+		assertThrows(C2paReadException::class.java) { runBlocking { dataSource.read(source) } }
 	}
 
 	/**
