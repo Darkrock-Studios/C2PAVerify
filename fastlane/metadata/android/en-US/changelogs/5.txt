@@ -1,0 +1,7 @@
+MP4 video is now supported: check its Content Credentials and play it back in the app.
+
+Verification also covers every still image format C2PA signs, not just JPEG: PNG, WebP, GIF, TIFF, AVIF, HEIC and SVG.
+
+Files kept in cloud storage, such as Drive, Dropbox or cloud-only items in Photos, can now be verified too.
+
+Added an About screen with version and license information.
