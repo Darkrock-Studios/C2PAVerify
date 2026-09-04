@@ -9,8 +9,6 @@ import com.darkrockstudios.apps.c2paverify.repository.C2paManifestParser
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
-import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
@@ -120,17 +118,65 @@ class C2paReaderCaptureTest {
 	}
 
 	/**
-	 * Our native library is built without the `pdf` feature, so PDF has no parser to reach. It has to
-	 * be refused outright rather than guessed into some other format's parser.
+	 * PDF reaches its parser and yields a manifest, identified from its own `%PDF-` header.
+	 *
+	 * Asserted on-device because it is the only place the claim can be settled: the handler is
+	 * compiled into the native library (`pdf_io.rs`\'s "PDF write functionality" constant, lopdf and
+	 * `application/pdf` are all in `libc2pa_c.so`), but only a real read proves the format token
+	 * actually routes there. Writing is what c2pa-rs leaves unimplemented, which costs a verifier
+	 * nothing. As with the still-image fixtures, only parsing is asserted: this file carries
+	 * upstream\'s 2001-era test certificate, so its verdict measures the clock, not the parser.
 	 */
 	@Test
-	fun pdfIsRefusedRatherThanGuessed() {
+	fun pdfReachesItsParser() = runBlocking {
+		val testCtx = InstrumentationRegistry.getInstrumentation().context
+		val appCtx = InstrumentationRegistry.getInstrumentation().targetContext
+		val bytes = testCtx.assets.open("c2pa/upstream/pdf_valid.pdf").use { it.readBytes() }
+		val source = ImageSource.Bytes(bytes, mimeType = null)
+
+		assertEquals(
+			"pdf_valid.pdf identified from its header",
+			"application/pdf",
+			source.resolveFormat()?.token,
+		)
+
+		val read = dataSource.read(source)
+		assertTrue("pdf_valid.pdf should yield a manifest, got $read", read is C2paRawRead.Manifest)
+
+		// Captured so the JVM suite can replay it as a fixture.
+		val manifest = read as C2paRawRead.Manifest
+		val outDir = File(appCtx.getExternalFilesDir(null), "c2pa-capture").apply { mkdirs() }
+		File(outDir, "pdf_valid.manifest.json").writeText(manifest.manifestJson)
+		manifest.detailedJson?.let { File(outDir, "pdf_valid.detailed.json").writeText(it) }
+		println("PDF manifest captured: ${manifest.manifestJson.length} chars")
+	}
+
+	/**
+	 * A PDF altered outside its hash exclusion reports a broken hard binding.
+	 *
+	 * Upstream publishes no tampered PDF, so one is made here: the document title in object 1 sits
+	 * well before the exclusion (bytes 6191..7632, which cover the embedded manifest), and swapping a
+	 * character keeps every offset and the xref intact, so the file still parses as a PDF and only
+	 * the hash can object. Without this, nothing proves the PDF binding is actually *checked* rather
+	 * than merely read.
+	 */
+	@Test
+	fun pdfAlteredOutsideItsExclusionFailsTheHardBinding() = runBlocking {
 		val testCtx = InstrumentationRegistry.getInstrumentation().context
 		val bytes = testCtx.assets.open("c2pa/upstream/pdf_valid.pdf").use { it.readBytes() }
-		val source = ImageSource.Bytes(bytes, mimeType = "application/pdf")
 
-		assertNull("PDF must not resolve to a format we cannot parse", source.resolveFormat())
-		assertThrows(C2paReadException::class.java) { runBlocking { dataSource.read(source) } }
+		val marker = "C2PA Test Doc".encodeToByteArray()
+		val at = bytes.indexOfSlice(marker)
+		assertTrue("title marker should be present to tamper with", at >= 0)
+		assertTrue("the byte flipped must sit outside the hash exclusion", at < 6191)
+		bytes[at] = 'X'.code.toByte()
+
+		val read = dataSource.read(ImageSource.Bytes(bytes, mimeType = null))
+		assertTrue("a tampered PDF should still parse, got $read", read is C2paRawRead.Manifest)
+		assertTrue(
+			"expected a data hash mismatch",
+			(read as C2paRawRead.Manifest).manifestJson.contains("assertion.dataHash.mismatch"),
+		)
 	}
 
 	/**
@@ -203,4 +249,14 @@ class C2paReaderCaptureTest {
 		File(outDir, "_ai_example.txt").writeText(out.toString())
 		println("AI EXAMPLE CHECK:\n$out")
 	}
+}
+
+/** First index of [slice] in this array, or -1. Kotlin has no stdlib equivalent for ByteArray. */
+private fun ByteArray.indexOfSlice(slice: ByteArray): Int {
+	if (slice.isEmpty() || slice.size > size) return -1
+	outer@ for (i in 0..size - slice.size) {
+		for (j in slice.indices) if (this[i + j] != slice[j]) continue@outer
+		return i
+	}
+	return -1
 }

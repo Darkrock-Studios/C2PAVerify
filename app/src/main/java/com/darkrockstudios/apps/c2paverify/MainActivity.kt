@@ -7,6 +7,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.core.content.IntentCompat
+import com.darkrockstudios.apps.c2paverify.model.common.AssetFormats
 import com.darkrockstudios.apps.c2paverify.ui.C2paVerifyApp
 import com.darkrockstudios.apps.c2paverify.ui.theme.C2PAVerifyTheme
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -33,9 +34,17 @@ class MainActivity : ComponentActivity() {
 		handleShareIntent(intent)
 	}
 
+	/**
+	 * Whether a shared type is worth opening. Senders often declare a family wildcard rather than a
+	 * concrete type, so the family prefixes stay; anything exact is asked of the format table, which
+	 * is what actually decides whether the reader has a parser for it.
+	 */
+	private fun isInspectable(type: String): Boolean =
+		type.startsWith("image/") || type.startsWith("video/") || AssetFormats.fromMimeType(type) != null
+
 	private fun handleShareIntent(intent: Intent?) {
 		val type = intent?.type
-		if (type == null || !(type.startsWith("image/") || type.startsWith("video/"))) return
+		if (type == null || !isInspectable(type)) return
 		val uri: Uri? = when (intent.action) {
 			Intent.ACTION_SEND ->
 				IntentCompat.getParcelableExtra(intent, Intent.EXTRA_STREAM, Uri::class.java)

@@ -5,6 +5,7 @@ import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -66,5 +67,50 @@ class C2paManifestParserTest {
 		assertNotNull(active)
 		assertTrue("expected at least one ingredient", active!!.ingredients.isNotEmpty())
 		assertFalse(active.assertions.isEmpty())
+	}
+
+	/**
+	 * A PDF parses like any other asset. Captured from `upstream/pdf_valid.pdf`, whose manifest the
+	 * native library only reaches because the `pdf` feature is compiled in; the hard binding matches,
+	 * so the failures are the signer's expired 2001 test certificate and nothing about the format.
+	 */
+	@Test
+	fun `pdf manifest parses with a matching hard binding`() {
+		val data = parser.parse(fixture("pdf-valid.manifest.json"))
+
+		assertEquals(ManifestValidationState.INVALID, data.validationState)
+		val active = data.activeManifest
+		assertNotNull(active); active!!
+		assertEquals("Claim Signer 1", active.signature?.commonName)
+		assertTrue(active.assertions.any { it.label == "c2pa.actions.v2" })
+		// A claim v2 manifest names its generator in claim_generator_info, not claim_generator.
+		assertEquals("Google C2PA SDK for Android", active.claimGenerator)
+
+		// The verdict is the certificate's, not the parser's: nothing here is a hash mismatch.
+		assertFalse(data.integrityFailures.any { it.code.contains("dataHash") })
+		assertTrue(data.validationIssues.any { it.code == "signingCredential.expired" })
+	}
+
+	/**
+	 * When a manifest carries both spellings, the v1 string wins: it is what the writer chose to say,
+	 * version and all, where the structured form is reassembled from parts. This fixture also holds
+	 * the reason the version is never appended to the reassembled name: a real capture's is
+	 * `944772188:967434322`, and the PDF's is the bare `":"`.
+	 */
+	@Test
+	fun `the v1 claim generator wins when a manifest carries both spellings`() {
+		val data = parser.parse(fixture("pixel-video-bmff.manifest.json"))
+
+		assertEquals(
+			"Google C2PA SDK for Android/944772188:967434322",
+			data.activeManifest?.claimGenerator,
+		)
+	}
+
+	@Test
+	fun `a manifest naming no generator at all reports none`() {
+		val stripped = fixture("pdf-valid.manifest.json").replace("claim_generator_info", "unused_key")
+
+		assertNull(parser.parse(stripped).activeManifest?.claimGenerator)
 	}
 }

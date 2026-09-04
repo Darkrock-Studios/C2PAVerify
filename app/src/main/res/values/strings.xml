@@ -3,7 +3,7 @@
 
     <!-- Picker / empty state -->
     <string name="empty_title">Inspect Content Credentials</string>
-    <string name="empty_body">Pick a photo or video to check for C2PA / Content Authenticity data: who made it, whether it has been edited or AI-generated, and whether the signer is trusted. You can also share a file to this app from anywhere.</string>
+    <string name="empty_body">Pick a photo, video or PDF to check for C2PA / Content Authenticity data: who made it, whether it has been edited or AI-generated, and whether the signer is trusted. You can also share a file to this app from anywhere.</string>
     <string name="pick_photo">Pick a file</string>
     <string name="example_section_title">Try an example</string>
     <string name="example_trusted_title">Trusted photo</string>
@@ -19,6 +19,11 @@
     <string name="no_image">Nothing selected</string>
     <string name="preview_unavailable_title">No preview available</string>
     <string name="preview_unavailable_body">This app can\'t display this file type, but its Content Credentials were still checked.</string>
+    <string name="pdf_page_indicator">Page %1$d of %2$d</string>
+    <string name="pdf_previous_page">Previous page</string>
+    <string name="pdf_next_page">Next page</string>
+    <string name="pdf_unreadable_title">This PDF can\'t be displayed</string>
+    <string name="pdf_unreadable_body">It may be password-protected or damaged. Its Content Credentials were still checked.</string>
     <string name="share_report_failed">Couldn\'t build a report image for this file.</string>
 
     <!-- Summary card -->

@@ -95,7 +95,7 @@ fun PickerScreen(
 	// intact), then open the document picker regardless of the user's choice.
 	val requestMediaLocation = rememberLauncherForActivityResult(
 		ActivityResultContracts.RequestPermission(),
-	) { openDocument.launch(arrayOf("image/*", "video/*")) }
+	) { openDocument.launch(arrayOf("image/*", "video/*", "application/pdf")) }
 
 	Scaffold(
 		topBar = {

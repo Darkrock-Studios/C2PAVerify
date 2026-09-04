@@ -28,6 +28,7 @@ navigationCompose = "2.10.0"
 turbine = "1.2.1"
 mockk = "1.14.11"
 konsist = "0.17.3"
+kitepdf = "0.8.2"
 c2paAndroid = "0.0.9"
 jna = "5.17.0"
 
@@ -90,6 +91,10 @@ telephoto-zoomable-image-coil3 = { group = "me.saket.telephoto", name = "zoomabl
 media3-exoplayer = { group = "androidx.media3", name = "media3-exoplayer", version.ref = "media3" }
 media3-ui-compose = { group = "androidx.media3", name = "media3-ui-compose", version.ref = "media3" }
 media3-ui-compose-material3 = { group = "androidx.media3", name = "media3-ui-compose-material3", version.ref = "media3" }
+
+# PDF rendering (pure Kotlin, no native binary)
+kitepdf-pdf = { group = "io.github.yuroyami", name = "kitepdf-pdf", version.ref = "kitepdf" }
+kitepdf-native-renderer = { group = "io.github.yuroyami", name = "kitepdf-native-renderer", version.ref = "kitepdf" }
 
 # C2PA (Android-only; JitPack)
 c2pa-android = { group = "com.github.contentauth", name = "c2pa-android", version.ref = "c2paAndroid" }

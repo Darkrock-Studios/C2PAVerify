@@ -18,11 +18,14 @@ import coil3.size.Precision
 import coil3.toBitmap
 import com.darkrockstudios.apps.c2paverify.model.common.AssetKind
 import com.darkrockstudios.apps.c2paverify.model.common.ImageSource
+import com.darkrockstudios.apps.c2paverify.model.common.pdfRasterScale
 import com.darkrockstudios.apps.c2paverify.model.common.resolveFormat
 import com.darkrockstudios.apps.c2paverify.model.share.ReportBadgeStyle
 import com.darkrockstudios.apps.c2paverify.model.share.ReportOverlay
 import com.darkrockstudios.apps.c2paverify.model.share.ReportTone
 import io.github.aakira.napier.Napier
+import io.github.yuroyami.kitepdf.PdfDocument
+import io.github.yuroyami.kitepdf.nativerenderer.AndroidPdfBitmapRenderer
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -69,7 +72,9 @@ class ReportRendererDataSource(
 	 * resolution.
 	 */
 	private suspend fun decodeScaled(image: ImageSource): Bitmap? {
-		if (image.resolveFormat()?.kind == AssetKind.VIDEO) return posterFrame(image)
+		val kind = image.resolveFormat()?.kind
+		if (kind == AssetKind.VIDEO) return posterFrame(image)
+		if (kind == AssetKind.DOCUMENT) return firstPage(image)
 		val data: Any = when (image) {
 			is ImageSource.Bytes -> image.bytes
 			is ImageSource.Path -> File(image.path)
@@ -85,6 +90,34 @@ class ReportRendererDataSource(
 			?.toBitmap()
 			?.copy(Bitmap.Config.ARGB_8888, /* isMutable = */ false)
 	}
+
+	/**
+	 * Page one, standing in for the document the way the poster frame does for a video.
+	 *
+	 * Rendered through the same KitePDF rasterizer the viewer draws with, so the report shows what
+	 * was on screen. A page is described in points, so [MAX_EDGE_PX] becomes the scale that would put
+	 * its long edge on that ceiling, which [pdfRasterScale] then cuts back to fit the pixel budget.
+	 */
+	private fun firstPage(image: ImageSource): Bitmap? = runCatching {
+		val bytes = when (image) {
+			is ImageSource.Bytes -> image.bytes
+			is ImageSource.Path -> File(image.path).readBytes()
+			is ImageSource.Content -> context.contentResolver.openInputStream(image.uri.toUri())
+				?.use { it.readBytes() }
+		} ?: return null
+		val doc = PdfDocument.openOrNull(bytes)?.takeIf { !it.isEncrypted } ?: return null
+		val page = doc.pages.firstOrNull() ?: return null
+		val longestEdgePt = maxOf(page.displayWidth, page.displayHeight)
+		val scale = pdfRasterScale(
+			widthPt = page.displayWidth,
+			heightPt = page.displayHeight,
+			preferred = if (longestEdgePt > 0) MAX_EDGE_PX / longestEdgePt else 1.0,
+			budgetPixels = MAX_REPORT_PIXELS,
+		)
+		AndroidPdfBitmapRenderer.renderToBitmap(page, scale, Color.WHITE, MAX_REPORT_PIXELS)
+	}.onFailure {
+		Napier.w(tag = TAG, throwable = it) { "Unable to render the first PDF page" }
+	}.getOrNull()
 
 	/**
 	 * The frame a video opens on, standing in for the asset the way the photo does for a still. A
@@ -390,6 +423,9 @@ class ReportRendererDataSource(
 	private companion object {
 		const val TAG = "ReportRenderer"
 		const val MAX_EDGE_PX = 2048
+
+		/** Backstop for a page whose aspect ratio would blow past [MAX_EDGE_PX] in the other axis. */
+		const val MAX_REPORT_PIXELS = 4_000_000L
 		// Tint strength (~20% over the dark panel) for the hero band behind the headline.
 		const val HERO_BAND_ALPHA = 0x33
 		const val REPORT_DIR = "reports"

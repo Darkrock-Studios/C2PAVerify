@@ -56,6 +56,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.darkrockstudios.apps.c2paverify.R
 import com.darkrockstudios.apps.c2paverify.model.common.AssetFormat
 import com.darkrockstudios.apps.c2paverify.model.common.AssetFormats
+import com.darkrockstudios.apps.c2paverify.model.common.isDocument
 import com.darkrockstudios.apps.c2paverify.model.common.isPlayable
 import com.darkrockstudios.apps.c2paverify.model.common.isRenderableBy
 import com.darkrockstudios.apps.c2paverify.model.share.ReportBadge
@@ -131,6 +132,7 @@ fun ViewerScreen(
 	val canPreview = assetFormat?.isRenderableBy(Build.VERSION.SDK_INT)
 		?: (state !is InspectionUiState.Error)
 	val canPlay = assetFormat?.isPlayable() == true
+	val isDocument = assetFormat?.isDocument() == true
 
 	// While the photo is zoomed in (inspecting), slide the summary card down to a peek so it's out
 	// of the way; bring it back when the photo returns to its fit/unzoomed state.
@@ -164,7 +166,7 @@ fun ViewerScreen(
 				actions = {
 					if (sharing) {
 						CircularProgressIndicator(modifier = Modifier.padding(end = 16.dp).size(24.dp))
-					} else if (overlay != null && (canPreview || canPlay)) {
+					} else if (overlay != null && (canPreview || canPlay || isDocument)) {
 						IconButton(onClick = { viewModel.shareReport(overlay) }) {
 							Icon(Icons.Filled.Share, stringResource(R.string.share_report))
 						}
@@ -190,6 +192,14 @@ fun ViewerScreen(
 				canPlay -> VideoPreview(
 					uri = imageUri,
 					modifier = Modifier.fillMaxSize().padding(bottom = summaryFootprint),
+				)
+
+				// No summaryFootprint reservation, unlike the player above: sharing the image path's
+				// zoomable state means the card peeks away on zoom instead of needing room kept for it.
+				isDocument -> PdfPreview(
+					uri = imageUri,
+					zoomableState = zoomState.zoomableState,
+					modifier = Modifier.fillMaxSize(),
 				)
 
 				canPreview -> ZoomableAsyncImage(

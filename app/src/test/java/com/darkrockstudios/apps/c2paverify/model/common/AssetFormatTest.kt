@@ -43,9 +43,12 @@ class AssetFormatTest {
 	}
 
 	@Test
-	fun `pdf is not supported because the native library is built without it`() {
-		assertNull(AssetFormats.fromMimeType("application/pdf"))
-		assertNull(AssetFormats.fromFileName("scan.pdf"))
+	fun `pdf resolves from its mime type, extension and header`() {
+		assertEquals("application/pdf", AssetFormats.fromMimeType("application/pdf")?.token)
+		assertEquals("application/pdf", AssetFormats.fromMimeType("application/x-pdf")?.token)
+		assertEquals("application/pdf", AssetFormats.fromFileName("scan.pdf")?.token)
+		assertEquals("application/pdf", AssetFormats.fromHeader("%PDF-1.7\n%".encodeToByteArray())?.token)
+		assertEquals(AssetKind.DOCUMENT, AssetFormats.fromMimeType("application/pdf")?.kind)
 	}
 
 	@Test
