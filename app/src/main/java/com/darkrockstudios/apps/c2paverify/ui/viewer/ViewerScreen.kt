@@ -209,7 +209,10 @@ fun ViewerScreen(
 					modifier = Modifier.fillMaxSize(),
 				)
 
-				else -> PreviewUnavailable(assetFormat)
+				else -> PreviewUnavailable(
+					format = assetFormat,
+					credentialsChecked = state !is InspectionUiState.Error,
+				)
 			}
 
 			InspectionOverlay(
@@ -230,9 +233,17 @@ fun ViewerScreen(
 /**
  * Stands in for the asset when the platform has no decoder for it. Reading provenance never needed
  * the pixels, so the summary card below still carries a real verdict.
+ *
+ * Unless it doesn't: a file corrupt enough to defeat the decoder usually defeats the C2PA reader
+ * too, and the reassurance that its credentials were checked anyway would then sit directly above
+ * the error card saying they were not. [credentialsChecked] is what keeps those two honest.
  */
 @Composable
-private fun PreviewUnavailable(format: AssetFormat?, modifier: Modifier = Modifier) {
+private fun PreviewUnavailable(
+	format: AssetFormat?,
+	credentialsChecked: Boolean,
+	modifier: Modifier = Modifier,
+) {
 	Column(
 		modifier = modifier.padding(32.dp),
 		horizontalAlignment = Alignment.CenterHorizontally,
@@ -250,7 +261,10 @@ private fun PreviewUnavailable(format: AssetFormat?, modifier: Modifier = Modifi
 			textAlign = TextAlign.Center,
 		)
 		Text(
-			text = stringResource(R.string.preview_unavailable_body),
+			text = stringResource(
+				if (credentialsChecked) R.string.preview_unavailable_body
+				else R.string.preview_unavailable_body_unchecked,
+			),
 			style = MaterialTheme.typography.bodyMedium,
 			color = MaterialTheme.colorScheme.onSurfaceVariant,
 			textAlign = TextAlign.Center,

@@ -1,6 +1,13 @@
 package com.darkrockstudios.apps.c2paverify.model.common
 
 /**
+ * Scheme the bundled sample assets are addressed by. Not a filesystem path and not something
+ * Android's `ContentResolver` can open: it has to be read through `AssetManager`. Coil understands
+ * it natively, which is why the image preview never had to care.
+ */
+const val ASSET_URI_PREFIX = "file:///android_asset/"
+
+/**
  * A platform-neutral handle to an asset to be inspected, either its bytes or a way to reach them.
  * Kept free of `android.*` types so the domain/repository/usecase layers stay KMP-clean; the Android
  * data sources translate a content URI into one of these.

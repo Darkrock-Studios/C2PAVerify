@@ -19,11 +19,14 @@
     <string name="no_image">Nothing selected</string>
     <string name="preview_unavailable_title">No preview available</string>
     <string name="preview_unavailable_body">This app can\'t display this file type, but its Content Credentials were still checked.</string>
+    <string name="preview_unavailable_body_unchecked">This app can\'t display this file type.</string>
     <string name="pdf_page_indicator">Page %1$d of %2$d</string>
     <string name="pdf_previous_page">Previous page</string>
     <string name="pdf_next_page">Next page</string>
     <string name="pdf_unreadable_title">This PDF can\'t be displayed</string>
-    <string name="pdf_unreadable_body">It may be password-protected or damaged. Its Content Credentials were still checked.</string>
+    <string name="pdf_unreadable_body">It may be password-protected or damaged.</string>
+    <string name="pdf_page_failed_title">This page can\'t be displayed</string>
+    <string name="pdf_page_failed_body">Try another page.</string>
     <string name="share_report_failed">Couldn\'t build a report image for this file.</string>
 
     <!-- Summary card -->

@@ -107,10 +107,16 @@ class ReportRendererDataSource(
 		} ?: return null
 		val doc = PdfDocument.openOrNull(bytes)?.takeIf { !it.isEncrypted } ?: return null
 		val page = doc.pages.firstOrNull() ?: return null
-		val longestEdgePt = maxOf(page.displayWidth, page.displayHeight)
+		// The renderer rasterises at scale * UserUnit, so the budget is worked out against dimensions
+		// with that unit already folded in; a /UserUnit 2 page would otherwise ask for four times the
+		// pixels budgeted here and be refused outright.
+		val unit = page.userUnit.takeIf { it.isFinite() && it > 0.0 } ?: 1.0
+		val widthPt = page.displayWidth * unit
+		val heightPt = page.displayHeight * unit
+		val longestEdgePt = maxOf(widthPt, heightPt)
 		val scale = pdfRasterScale(
-			widthPt = page.displayWidth,
-			heightPt = page.displayHeight,
+			widthPt = widthPt,
+			heightPt = heightPt,
 			preferred = if (longestEdgePt > 0) MAX_EDGE_PX / longestEdgePt else 1.0,
 			budgetPixels = MAX_REPORT_PIXELS,
 		)

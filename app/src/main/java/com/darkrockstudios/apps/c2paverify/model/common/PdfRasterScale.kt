@@ -12,8 +12,12 @@ import kotlin.math.sqrt
  * before the ask, which is the whole reason this is a shared function and not a line at each call
  * site. [preferred] is what the caller would like; the return value is that or less.
  *
- * A page is described in points, so a caller that wants to fill a viewport derives [preferred] from
- * it. Pure arithmetic, kept out of the Android layers so it can be tested without a device.
+ * [widthPt] and [heightPt] must be the page's *effective* dimensions, with `/UserUnit` already
+ * folded in. The renderer rasterises at `scale * userUnit`, so a caller that passes the raw page
+ * size would under-count a `/UserUnit 2` page by a factor of four and hand back a scale that trips
+ * the very limit this exists to respect.
+ *
+ * Pure arithmetic, kept out of the Android layers so it can be tested without a device.
  */
 fun pdfRasterScale(
 	widthPt: Double,
@@ -21,21 +25,26 @@ fun pdfRasterScale(
 	preferred: Double,
 	budgetPixels: Long,
 ): Double {
-	if (widthPt <= 0.0 || heightPt <= 0.0 || budgetPixels <= 0L) return FALLBACK_SCALE
+	if (!widthPt.isFinite() || !heightPt.isFinite() || widthPt <= 0.0 || heightPt <= 0.0) {
+		return FALLBACK_SCALE
+	}
+	// A budget below one pixel cannot be met by any raster, since each axis ceilings to at least 1.
+	// The renderer rejects such a budget outright, so there is nothing better to return than this.
+	if (budgetPixels < 1L) return FALLBACK_SCALE
+
 	val affordable = sqrt(budgetPixels.toDouble() / (widthPt * heightPt))
+	val wanted = if (preferred.isFinite() && preferred > 0.0) preferred else affordable
+	var scale = min(wanted, affordable)
 	// The renderer rounds each axis up independently, so a scale that exactly spends the budget can
-	// still land a pixel over it once both are ceilinged. Step down until it genuinely fits.
-	var scale = min(preferred, affordable)
-	while (scale > MIN_SCALE && ceil(widthPt * scale) * ceil(heightPt * scale) > budgetPixels) {
+	// still land a pixel over it once both are ceilinged. Step down until it genuinely fits. This
+	// always terminates: shrinking far enough puts both axes at 1px, and 1x1 fits any budget >= 1.
+	while (scale > 0.0 && ceil(widthPt * scale) * ceil(heightPt * scale) > budgetPixels) {
 		scale *= BACKOFF
 	}
-	return scale.coerceAtLeast(MIN_SCALE)
+	return scale
 }
 
-/** Used when a page reports no usable size; the renderer's own default. */
+/** Used when a page reports no usable size, or a budget no raster could meet; the renderer's own default. */
 private const val FALLBACK_SCALE = 1.0
-
-/** Floor on the result, so a page too large for any budget still renders something legible-ish. */
-private const val MIN_SCALE = 0.01
 
 private const val BACKOFF = 0.999

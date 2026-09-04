@@ -6,6 +6,7 @@ import android.net.Uri
 import android.provider.MediaStore
 import androidx.core.net.toUri
 import com.darkrockstudios.apps.c2paverify.model.common.AssetFormats
+import com.darkrockstudios.apps.c2paverify.model.common.ASSET_URI_PREFIX
 import com.darkrockstudios.apps.c2paverify.model.common.ImageSource
 import com.darkrockstudios.apps.c2paverify.model.common.isStreamed
 import io.github.aakira.napier.Napier
@@ -170,7 +171,6 @@ class AssetSourceDataSource(private val context: Context) {
 	private companion object {
 		const val STREAMED_DIR = "streamed"
 		const val STREAMED_FILE = "asset"
-		const val ASSET_URI_PREFIX = "file:///android_asset/"
 		const val TAG = "AssetSource"
 		const val PICKER_PATH = "picker" // content://media/picker/... rejects setRequireOriginal
 	}
