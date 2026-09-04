@@ -52,7 +52,10 @@ class AndroidC2paReaderDataSource(private val context: Context) : C2paReaderData
 						Napier.d(tag = TAG) { "No C2PA manifest present: ${e.message}" }
 						C2paRawRead.NoManifest
 					} else {
-						throw C2paReadException("Failed to read C2PA data: ${e.message}", e)
+						// Carries the cause's own words and nothing else: every presenter of this already
+						// says that reading the C2PA data is what failed, and prefixing it here spelled
+						// that out twice on screen.
+						throw C2paReadException(e.message ?: "The file could not be parsed", e)
 					}
 				}
 				// A read that failed part way through looks to the reader like a shorter file, which
