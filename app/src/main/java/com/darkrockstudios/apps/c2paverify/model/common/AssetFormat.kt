@@ -6,6 +6,9 @@ enum class AssetKind {
 	VIDEO,
 	AUDIO,
 
+	/** A paged document, presented a page at a time rather than as a single frame. */
+	DOCUMENT,
+
 	/** A bare C2PA manifest store (`.c2pa`), carrying provenance for some other asset. */
 	MANIFEST,
 }
@@ -23,7 +26,7 @@ data class AssetFormat(val token: String, val kind: AssetKind)
  *
  * Content bytes are consulted first: a header says what an asset *is*, while a MIME type or file
  * name says only what it claims to be. The tables mirror the handlers compiled into our native
- * library, which is built without the `pdf` feature, so PDF is deliberately absent.
+ * library, PDF included: that handler reads but cannot write, which costs a verifier nothing.
  */
 object AssetFormats {
 
@@ -51,6 +54,7 @@ object AssetFormats {
 	private val MP3 = AssetFormat("audio/mpeg", AssetKind.AUDIO)
 	private val WAV = AssetFormat("audio/wav", AssetKind.AUDIO)
 	private val FLAC = AssetFormat("audio/flac", AssetKind.AUDIO)
+	private val PDF = AssetFormat("application/pdf", AssetKind.DOCUMENT)
 	private val C2PA = AssetFormat("application/x-c2pa-manifest-store", AssetKind.MANIFEST)
 
 	/** Formats sharing the BMFF parser, whose container brands alone cannot separate them. */
@@ -101,6 +105,8 @@ object AssetFormats {
 		"audio/x-wav" to WAV,
 		"audio/vnd.wave" to WAV,
 		"audio/flac" to FLAC,
+		"application/pdf" to PDF,
+		"application/x-pdf" to PDF,
 		"application/c2pa" to C2PA,
 		"application/x-c2pa-manifest-store" to C2PA,
 	)
@@ -120,6 +126,7 @@ object AssetFormats {
 		"svg" to SVG, "xml" to SVG, "xhtml" to SVG,
 		"mp4" to MP4, "m4v" to M4V, "mov" to MOV, "avi" to AVI,
 		"m4a" to M4A, "mp3" to MP3, "wav" to WAV, "flac" to FLAC,
+		"pdf" to PDF,
 		"c2pa" to C2PA,
 	)
 
@@ -162,6 +169,7 @@ object AssetFormats {
 			// TIFF byte-order marks, shared by every raw format built on TIFF (DNG, ARW, NEF).
 			header.startsWith(0x49, 0x49, 0x2A, 0x00) -> TIFF
 			header.startsWith(0x4D, 0x4D, 0x00, 0x2A) -> TIFF
+			header.matchesAt(0, "%PDF-") -> PDF
 			header.matchesAt(0, "fLaC") -> FLAC
 			header.matchesAt(0, "ID3") -> MP3
 			header.matchesAt(0, "RIFF") -> riffFormat(header)
@@ -238,6 +246,15 @@ fun AssetFormat.isRenderableBy(sdkInt: Int): Boolean = when (token) {
  * for provenance but have no preview.
  */
 fun AssetFormat.isPlayable(): Boolean = token in PLAYABLE_TOKENS
+
+/**
+ * Whether this format is presented a page at a time, by a document viewer.
+ *
+ * Separate from [isRenderableBy] and [isPlayable] for the same reason those are separate from each
+ * other: a document is neither a single bitmap nor a stream with a clock, and none of the three
+ * answers ever coincide.
+ */
+fun AssetFormat.isDocument(): Boolean = kind == AssetKind.DOCUMENT
 
 /**
  * Whether an asset of this format is read by streaming rather than loaded whole.

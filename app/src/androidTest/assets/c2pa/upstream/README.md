@@ -23,8 +23,13 @@ returns `validation_state: Invalid` with `signingCredential.expired`,
 `assertion.dataHash.match`. So assert only that they parse: a trust verdict here measures the
 clock and the trust list, not format handling.
 
-`pdf_valid.pdf` is the negative case: our native library is built without the `pdf` feature, so PDF
-must be refused rather than routed to another format's parser.
+`pdf_valid.pdf` proves PDF reaches its own parser. The `pdf` feature *is* compiled into our native
+library, and a device read returns `assertion.dataHash.match`: the hard binding holds, exactly as
+for a still. Only writing is unimplemented upstream, which costs a verifier nothing.
+
+There is no tampered PDF upstream, so `C2paReaderCaptureTest` makes one: it flips a character of
+the document title in object 1, which sits before the hash exclusion at bytes 6191..7632 and leaves
+every offset and the xref intact, and asserts the read comes back `assertion.dataHash.mismatch`.
 
 Not vendored: `dng_valid.dng` and `no_c2pa_042.dng` are ~18 MB each. Audio fixtures (m4a, mp3, wav,
 flac) are available upstream if that scope opens up.

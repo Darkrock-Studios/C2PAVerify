@@ -57,7 +57,7 @@ class C2paManifestParser(private val json: Json) {
 		id = id,
 		title = obj.string("title"),
 		format = obj.string("format"),
-		claimGenerator = obj.string("claim_generator"),
+		claimGenerator = obj.claimGenerator(),
 		instanceId = obj.string("instance_id"),
 		signature = obj["signature_info"]?.asObjectOrNull()?.let { sig ->
 			SignatureInfo(
@@ -124,6 +124,21 @@ class C2paManifestParser(private val json: Json) {
 		url = string("url"),
 		category = category,
 	)
+
+	/**
+	 * The tool that made the claim.
+	 *
+	 * Claim v1 wrote a single `claim_generator` string; v2 replaced it with the structured
+	 * `claim_generator_info` list and writers are free to omit the old key entirely, which is how a
+	 * perfectly well-described asset ended up reporting no generator at all.
+	 *
+	 * Only the name is taken from the structured form. Its sibling `version` is not always a version:
+	 * one real capture carries the literal `":"`, and appending that reads as corruption rather than
+	 * as detail.
+	 */
+	private fun JsonObject.claimGenerator(): String? = string("claim_generator")
+		?: this["claim_generator_info"]?.asArrayOrNull()
+			?.firstOrNull()?.asObjectOrNull()?.string("name")
 
 	// --- JsonElement helpers ---
 	private fun JsonObject.string(key: String): String? =

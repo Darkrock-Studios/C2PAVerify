@@ -8,3 +8,7 @@ pixel-video-bmff.{manifest,detailed}.json -> hand-built, NOT device-captured. Mi
   video's c2pa.hash.bmff.v3 assertion (exclusions decoded from a real PXL_*.mp4, including the
   indexed `/moov[1]/trak[3]` xpath) plus the bmffHash.mismatch that released c2pa-rs wrongly
   reports for it. Delete with the BMFF_INDEXED_XPATH workaround.
+
+pdf-valid.{manifest,detailed}.json -> device capture of upstream/pdf_valid.pdf. Confirms the
+  native library does parse PDF: assertion.dataHash.match, so the hard binding holds. Its
+  validation_state is Invalid only because upstream signed it with a 2001-era test certificate.

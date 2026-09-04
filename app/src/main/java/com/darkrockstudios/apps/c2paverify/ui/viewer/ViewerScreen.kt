@@ -56,6 +56,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.darkrockstudios.apps.c2paverify.R
 import com.darkrockstudios.apps.c2paverify.model.common.AssetFormat
 import com.darkrockstudios.apps.c2paverify.model.common.AssetFormats
+import com.darkrockstudios.apps.c2paverify.model.common.isDocument
 import com.darkrockstudios.apps.c2paverify.model.common.isPlayable
 import com.darkrockstudios.apps.c2paverify.model.common.isRenderableBy
 import com.darkrockstudios.apps.c2paverify.model.share.ReportBadge
@@ -131,6 +132,7 @@ fun ViewerScreen(
 	val canPreview = assetFormat?.isRenderableBy(Build.VERSION.SDK_INT)
 		?: (state !is InspectionUiState.Error)
 	val canPlay = assetFormat?.isPlayable() == true
+	val isDocument = assetFormat?.isDocument() == true
 
 	// While the photo is zoomed in (inspecting), slide the summary card down to a peek so it's out
 	// of the way; bring it back when the photo returns to its fit/unzoomed state.
@@ -164,7 +166,7 @@ fun ViewerScreen(
 				actions = {
 					if (sharing) {
 						CircularProgressIndicator(modifier = Modifier.padding(end = 16.dp).size(24.dp))
-					} else if (overlay != null && (canPreview || canPlay)) {
+					} else if (overlay != null && (canPreview || canPlay || isDocument)) {
 						IconButton(onClick = { viewModel.shareReport(overlay) }) {
 							Icon(Icons.Filled.Share, stringResource(R.string.share_report))
 						}
@@ -192,6 +194,14 @@ fun ViewerScreen(
 					modifier = Modifier.fillMaxSize().padding(bottom = summaryFootprint),
 				)
 
+				// No summaryFootprint reservation, unlike the player above: sharing the image path's
+				// zoomable state means the card peeks away on zoom instead of needing room kept for it.
+				isDocument -> PdfPreview(
+					uri = imageUri,
+					zoomableState = zoomState.zoomableState,
+					modifier = Modifier.fillMaxSize(),
+				)
+
 				canPreview -> ZoomableAsyncImage(
 					model = imageUri,
 					contentDescription = stringResource(R.string.selected_asset),
@@ -199,7 +209,10 @@ fun ViewerScreen(
 					modifier = Modifier.fillMaxSize(),
 				)
 
-				else -> PreviewUnavailable(assetFormat)
+				else -> PreviewUnavailable(
+					format = assetFormat,
+					credentialsChecked = state !is InspectionUiState.Error,
+				)
 			}
 
 			InspectionOverlay(
@@ -220,9 +233,17 @@ fun ViewerScreen(
 /**
  * Stands in for the asset when the platform has no decoder for it. Reading provenance never needed
  * the pixels, so the summary card below still carries a real verdict.
+ *
+ * Unless it doesn't: a file corrupt enough to defeat the decoder usually defeats the C2PA reader
+ * too, and the reassurance that its credentials were checked anyway would then sit directly above
+ * the error card saying they were not. [credentialsChecked] is what keeps those two honest.
  */
 @Composable
-private fun PreviewUnavailable(format: AssetFormat?, modifier: Modifier = Modifier) {
+private fun PreviewUnavailable(
+	format: AssetFormat?,
+	credentialsChecked: Boolean,
+	modifier: Modifier = Modifier,
+) {
 	Column(
 		modifier = modifier.padding(32.dp),
 		horizontalAlignment = Alignment.CenterHorizontally,
@@ -240,7 +261,10 @@ private fun PreviewUnavailable(format: AssetFormat?, modifier: Modifier = Modifi
 			textAlign = TextAlign.Center,
 		)
 		Text(
-			text = stringResource(R.string.preview_unavailable_body),
+			text = stringResource(
+				if (credentialsChecked) R.string.preview_unavailable_body
+				else R.string.preview_unavailable_body_unchecked,
+			),
 			style = MaterialTheme.typography.bodyMedium,
 			color = MaterialTheme.colorScheme.onSurfaceVariant,
 			textAlign = TextAlign.Center,

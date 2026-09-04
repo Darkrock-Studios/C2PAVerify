@@ -1,0 +1,92 @@
+{
+  "active_manifest": "urn:c2pa:3b3dbff2-d24a-774b-294c-4a52090196b9",
+  "manifests": {
+    "urn:c2pa:3b3dbff2-d24a-774b-294c-4a52090196b9": {
+      "claim_generator_info": [
+        {
+          "name": "Google C2PA SDK for Android",
+          "version": ":"
+        }
+      ],
+      "instance_id": "6a978afe-4d34-e459-16f7-4ee63a1e2d26",
+      "assertions": [
+        {
+          "label": "c2pa.actions.v2",
+          "data": {
+            "actions": [
+              {
+                "action": "c2pa.created",
+                "digitalSourceType": "http://cv.iptc.org/newscodes/digitalsourcetype/trainedAlgorithmicMedia"
+              }
+            ]
+          },
+          "created": true
+        }
+      ],
+      "signature_info": {
+        "alg": "Es256",
+        "common_name": "Claim Signer 1",
+        "cert_serial_number": "54833698342607035153311457600839017755"
+      },
+      "label": "urn:c2pa:3b3dbff2-d24a-774b-294c-4a52090196b9",
+      "claim_version": 2
+    }
+  },
+  "validation_status": [
+    {
+      "code": "signingCredential.expired",
+      "url": "self#jumbf=/c2pa/urn:c2pa:3b3dbff2-d24a-774b-294c-4a52090196b9/c2pa.signature",
+      "explanation": "certificate expired"
+    },
+    {
+      "code": "signingCredential.untrusted",
+      "url": "self#jumbf=/c2pa/urn:c2pa:3b3dbff2-d24a-774b-294c-4a52090196b9/c2pa.signature",
+      "explanation": "signing certificate untrusted"
+    },
+    {
+      "code": "claimSignature.mismatch",
+      "url": "self#jumbf=/c2pa/urn:c2pa:3b3dbff2-d24a-774b-294c-4a52090196b9/c2pa.signature",
+      "explanation": "claim signature is not valid"
+    }
+  ],
+  "validation_results": {
+    "activeManifest": {
+      "success": [
+        {
+          "code": "assertion.hashedURI.match",
+          "url": "self#jumbf=/c2pa/urn:c2pa:3b3dbff2-d24a-774b-294c-4a52090196b9/c2pa.assertions/c2pa.actions.v2",
+          "explanation": "hashed uri matched: self#jumbf=c2pa.assertions/c2pa.actions.v2"
+        },
+        {
+          "code": "assertion.hashedURI.match",
+          "url": "self#jumbf=/c2pa/urn:c2pa:3b3dbff2-d24a-774b-294c-4a52090196b9/c2pa.assertions/c2pa.hash.data",
+          "explanation": "hashed uri matched: self#jumbf=c2pa.assertions/c2pa.hash.data"
+        },
+        {
+          "code": "assertion.dataHash.match",
+          "url": "self#jumbf=/c2pa/urn:c2pa:3b3dbff2-d24a-774b-294c-4a52090196b9/c2pa.assertions/c2pa.hash.data",
+          "explanation": "data hash valid"
+        }
+      ],
+      "informational": [],
+      "failure": [
+        {
+          "code": "signingCredential.expired",
+          "url": "self#jumbf=/c2pa/urn:c2pa:3b3dbff2-d24a-774b-294c-4a52090196b9/c2pa.signature",
+          "explanation": "certificate expired"
+        },
+        {
+          "code": "signingCredential.untrusted",
+          "url": "self#jumbf=/c2pa/urn:c2pa:3b3dbff2-d24a-774b-294c-4a52090196b9/c2pa.signature",
+          "explanation": "signing certificate untrusted"
+        },
+        {
+          "code": "claimSignature.mismatch",
+          "url": "self#jumbf=/c2pa/urn:c2pa:3b3dbff2-d24a-774b-294c-4a52090196b9/c2pa.signature",
+          "explanation": "claim signature is not valid"
+        }
+      ]
+    }
+  },
+  "validation_state": "Invalid"
+}

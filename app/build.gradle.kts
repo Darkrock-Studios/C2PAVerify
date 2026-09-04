@@ -179,6 +179,13 @@ dependencies {
 	implementation(libs.media3.ui.compose)
 	implementation(libs.media3.ui.compose.material3)
 
+	// PDF page rendering. The pure-Kotlin engine plus its android.graphics rasterizer, which the
+	// viewer and the share report both draw through. Deliberately NOT kitepdf-compose-viewer: that
+	// drags in the EPUB reflow engine and a second (JetBrains) Compose runtime, and rendering pages
+	// into Telephoto instead keeps PDF zooming identical to every still.
+	implementation(libs.kitepdf.pdf)
+	implementation(libs.kitepdf.native.renderer)
+
 	// C2PA reading/verification (Android-only native lib via JitPack; needs JNA aar).
 	// c2pa-android transitively pulls the plain jna *jar*; on Android we need the *aar* (which
 	// carries the native .so libs), so exclude the transitive jar to avoid duplicate classes.

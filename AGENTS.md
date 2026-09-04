@@ -4,9 +4,10 @@ Conventions for any agent (or human) working in this repo. See `PLAN.md` for the
 the living progress tracker.
 
 ## What this app is
-An Android app that inspects and verifies **C2PA / Content Authenticity** metadata in photos:
-pick or share a photo in, see whether provenance data is present and whether the signer is
-*trusted*, surface whether the image is **AI-generated**, and drill into the full manifest.
+An Android app that inspects and verifies **C2PA / Content Authenticity** metadata in still
+images, MP4 video and PDF: pick or share a file in, see whether provenance data is present and
+whether the signer is *trusted*, surface whether it is **AI-generated**, and drill into the full
+manifest. `AssetFormats` is the list of what the bundled reader actually handles.
 
 ## CLI tooling available — prefer these over hand-rolling
 - **`kotlin`** — the Kotlin toolchain CLI.
@@ -62,7 +63,7 @@ Strict layering, dependencies point **downward only**:
 
 ## UI conventions
 - Jetpack Compose + Material 3 only. Adaptive multi-pane via `material3.adaptive`
-  (`NavigableListDetailPaneScaffold`) — deep-dive beside the photo on large screens.
+  (`NavigableListDetailPaneScaffold`) — deep-dive beside the asset on large screens.
 - **Edge-to-edge** app-wide: content scrolls under translucent system bars, but resting content is
   inset-padded so it never sits *under* a bar. Drive padding from `WindowInsets`
   (`systemBars`/`safeDrawing` as `contentPadding`); no `fitsSystemWindows`, no hardcoded bar heights.
