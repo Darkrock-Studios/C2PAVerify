@@ -65,6 +65,7 @@ import com.darkrockstudios.apps.c2paverify.model.share.toneFor
 import com.darkrockstudios.apps.c2paverify.model.summary.C2paSummary
 import com.darkrockstudios.apps.c2paverify.model.summary.ContentOrigin
 import com.darkrockstudios.apps.c2paverify.model.summary.OverallStatus
+import com.darkrockstudios.apps.c2paverify.model.summary.UnverifiableReason
 import com.darkrockstudios.apps.c2paverify.model.summary.hasOriginSignal
 import com.darkrockstudios.apps.c2paverify.model.summary.primaryOrigin
 import com.darkrockstudios.apps.c2paverify.model.summary.secondaryOrigins
@@ -307,12 +308,22 @@ private fun InspectionOverlay(
  * summary card: the headline leads with the content origin (falling back to the trust verdict when
  * there's none), the remaining origins become secondary pills, and the verdict is demoted to a line.
  */
+/** Why we could not check integrity, phrased for the reader. */
+@Composable
+private fun unverifiableTagline(summary: C2paSummary): String = when (summary.unverifiableReason) {
+	UnverifiableReason.ASSET_TOO_LARGE -> stringResource(R.string.status_unverifiable_too_large)
+	// BMFF_INDEXED_XPATH
+	else -> stringResource(R.string.status_unverifiable_body)
+}
+
 @Composable
 private fun reportOverlayFor(summary: C2paSummary): ReportOverlay {
 	val statusLabel = when (summary.status) {
 		OverallStatus.SIGNED_TRUSTED -> stringResource(R.string.status_trusted)
 		OverallStatus.SIGNED_UNTRUSTED -> stringResource(R.string.status_untrusted)
 		OverallStatus.TAMPERED_INVALID -> stringResource(R.string.status_tampered)
+		// BMFF_INDEXED_XPATH
+		OverallStatus.UNVERIFIABLE -> stringResource(R.string.status_unverifiable)
 		OverallStatus.NO_MANIFEST -> stringResource(R.string.status_no_manifest)
 	}
 	val hasOrigin = summary.hasOriginSignal()
@@ -322,6 +333,7 @@ private fun reportOverlayFor(summary: C2paSummary): ReportOverlay {
 	val headline = origin?.label ?: statusLabel
 	val tagline = origin?.tagline
 		?: stringResource(R.string.status_no_manifest_body).takeIf { summary.status == OverallStatus.NO_MANIFEST }
+		?: unverifiableTagline(summary).takeIf { summary.status == OverallStatus.UNVERIFIABLE }
 
 	// Secondary pills: the same set the card shows (primary excluded, "Edited" suppressed under AI).
 	val badges = buildList {

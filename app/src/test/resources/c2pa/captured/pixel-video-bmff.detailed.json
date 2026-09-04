@@ -1,0 +1,110 @@
+{
+  "active_manifest": "urn:c2pa:bd0f9b25-226a-d47a-6e8a-48ba9646d942",
+  "manifests": {
+    "urn:c2pa:bd0f9b25-226a-d47a-6e8a-48ba9646d942": {
+      "claim": {
+        "instanceID": "76039d3e-491a-764f-e19a-4f8d08a60982",
+        "claim_generator_info": {
+          "name": "Google C2PA SDK for Android",
+          "version": "944772188:967434322"
+        },
+        "created_assertions": [
+          {
+            "url": "self#jumbf=c2pa.assertions/c2pa.actions.v2",
+            "hash": "8Lp0kZ2iSg1sHqGZ2Yc0m1vGZ0v3d0R1n5Xk0Qk1a2c="
+          },
+          {
+            "url": "self#jumbf=c2pa.assertions/c2pa.hash.bmff.v3",
+            "hash": "Yk8Qw2R1n5Xk0Qk1a2c8Lp0kZ2iSg1sHqGZ2Yc0m1s="
+          }
+        ],
+        "signature": "self#jumbf=c2pa.signature",
+        "alg": "sha256"
+      },
+      "assertion_store": {
+        "c2pa.actions.v2": {
+          "actions": [
+            {
+              "action": "c2pa.created",
+              "description": "Created by Pixel Camera.",
+              "digitalSourceType": "http://cv.iptc.org/newscodes/digitalsourcetype/computationalCapture"
+            }
+          ]
+        },
+        "c2pa.hash.bmff.v3": {
+          "exclusions": [
+            {
+              "xpath": "/ftyp"
+            },
+            {
+              "xpath": "/uuid",
+              "data": [
+                {
+                  "offset": 8,
+                  "value": "2P7D1hsOSDySl1goh37EgQ=="
+                }
+              ]
+            },
+            {
+              "xpath": "/mfra"
+            },
+            {
+              "xpath": "/free"
+            },
+            {
+              "xpath": "/moov/free"
+            },
+            {
+              "xpath": "/moov/udta"
+            },
+            {
+              "xpath": "/moov/meta"
+            },
+            {
+              "xpath": "/moov[1]/trak[3]"
+            }
+          ],
+          "alg": "sha256",
+          "hash": "m2AflY+AhcLpNkbzAI01gLkSkVhJnwRpUW09Quh/S/M=",
+          "name": "BMFF file hash"
+        }
+      },
+      "signature": {
+        "alg": "ES256",
+        "issuer": "Google LLC",
+        "cert_serial_number": "142817295718429534421091857221049361739"
+      }
+    }
+  },
+  "validation_state": "Invalid",
+  "validation_results": {
+    "activeManifest": {
+      "success": [
+        {
+          "code": "claimSignature.insideValidity",
+          "url": "self#jumbf=/c2pa/urn:c2pa:bd0f9b25-226a-d47a-6e8a-48ba9646d942/c2pa.signature",
+          "explanation": "claim signature valid"
+        },
+        {
+          "code": "claimSignature.validated",
+          "url": "self#jumbf=/c2pa/urn:c2pa:bd0f9b25-226a-d47a-6e8a-48ba9646d942/c2pa.signature",
+          "explanation": "claim signature valid"
+        },
+        {
+          "code": "signingCredential.trusted",
+          "url": "self#jumbf=/c2pa/urn:c2pa:bd0f9b25-226a-d47a-6e8a-48ba9646d942/c2pa.signature",
+          "explanation": "signing certificate trusted"
+        }
+      ],
+      "informational": [],
+      "failure": [
+        {
+          "code": "assertion.bmffHash.mismatch",
+          "url": "self#jumbf=/c2pa/urn:c2pa:bd0f9b25-226a-d47a-6e8a-48ba9646d942/c2pa.assertions/c2pa.hash.bmff.v3",
+          "explanation": "asset hash error, name: BMFF file hash, error: assertion.bmffHash.mismatch"
+        }
+      ]
+    },
+    "ingredientDeltas": []
+  }
+}

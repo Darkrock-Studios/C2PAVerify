@@ -45,5 +45,7 @@ fun toneFor(status: OverallStatus): ReportTone = when (status) {
 	OverallStatus.SIGNED_TRUSTED -> ReportTone.TRUSTED
 	OverallStatus.SIGNED_UNTRUSTED -> ReportTone.UNTRUSTED
 	OverallStatus.TAMPERED_INVALID -> ReportTone.INVALID
+	// BMFF_INDEXED_XPATH
+	OverallStatus.UNVERIFIABLE -> ReportTone.NEUTRAL
 	OverallStatus.NO_MANIFEST -> ReportTone.NEUTRAL
 }

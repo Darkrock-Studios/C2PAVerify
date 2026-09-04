@@ -44,6 +44,7 @@ import com.darkrockstudios.apps.c2paverify.R
 import com.darkrockstudios.apps.c2paverify.model.summary.C2paSummary
 import com.darkrockstudios.apps.c2paverify.model.summary.ContentOrigin
 import com.darkrockstudios.apps.c2paverify.model.summary.OverallStatus
+import com.darkrockstudios.apps.c2paverify.model.summary.UnverifiableReason
 import com.darkrockstudios.apps.c2paverify.model.summary.hasOriginSignal
 import com.darkrockstudios.apps.c2paverify.model.summary.primaryOrigin
 import com.darkrockstudios.apps.c2paverify.model.summary.secondaryOrigins
@@ -264,10 +265,21 @@ private fun OriginChip(origin: ContentOrigin, onClick: () -> Unit) {
 	)
 }
 
-/** Subtitle for the fallback (no-origin) hero: only the no-manifest case needs one. */
+/** Subtitle for the fallback (no-origin) hero: only a couple of verdicts need one. */
 @Composable
-private fun heroFallbackTagline(summary: C2paSummary): String? =
-	if (summary.status == OverallStatus.NO_MANIFEST) stringResource(R.string.status_no_manifest_body) else null
+private fun heroFallbackTagline(summary: C2paSummary): String? = when (summary.status) {
+	OverallStatus.NO_MANIFEST -> stringResource(R.string.status_no_manifest_body)
+	OverallStatus.UNVERIFIABLE -> unverifiableBody(summary)
+	else -> null
+}
+
+/** Why we could not check integrity, phrased for the reader. */
+@Composable
+private fun unverifiableBody(summary: C2paSummary): String = when (summary.unverifiableReason) {
+	UnverifiableReason.ASSET_TOO_LARGE -> stringResource(R.string.status_unverifiable_too_large)
+	// BMFF_INDEXED_XPATH
+	else -> stringResource(R.string.status_unverifiable_body)
+}
 
 /** Non-composable origin → explainer mapping, for use inside click handlers. */
 private fun chipInfoFor(origin: ContentOrigin): ChipInfo = when (origin) {
@@ -401,6 +413,14 @@ private fun statusVisuals(status: OverallStatus): StatusVisuals {
 			icon = Icons.Filled.Warning,
 		)
 
+		// BMFF_INDEXED_XPATH
+		OverallStatus.UNVERIFIABLE -> StatusVisuals(
+			label = stringResource(R.string.status_unverifiable),
+			container = if (dark) Color(0xFF3A3016) else Color(0xFFFFF0C2),
+			onContainer = if (dark) Color(0xFFF6D77A) else Color(0xFF5A4500),
+			icon = Icons.Filled.Info,
+		)
+
 		OverallStatus.NO_MANIFEST -> StatusVisuals(
 			label = stringResource(R.string.status_no_manifest),
 			container = MaterialTheme.colorScheme.surfaceVariant,
@@ -418,6 +438,8 @@ private fun trustTint(status: OverallStatus): Color {
 		OverallStatus.SIGNED_TRUSTED -> if (dark) Color(0xFF7FE0A6) else Color(0xFF1E7A43)
 		OverallStatus.SIGNED_UNTRUSTED -> if (dark) Color(0xFFE6C25A) else Color(0xFF9A6800)
 		OverallStatus.TAMPERED_INVALID -> MaterialTheme.colorScheme.error
+		// BMFF_INDEXED_XPATH
+		OverallStatus.UNVERIFIABLE -> if (dark) Color(0xFFE6C25A) else Color(0xFF9A6800)
 		OverallStatus.NO_MANIFEST -> MaterialTheme.colorScheme.onSurfaceVariant
 	}
 }

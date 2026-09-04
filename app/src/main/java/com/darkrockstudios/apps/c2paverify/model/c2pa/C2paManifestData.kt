@@ -15,6 +15,11 @@ data class C2paManifestData(
 	val rawManifestJson: String,
 	/** Raw `reader.detailedJson()` payload, if available. */
 	val rawDetailedJson: String? = null,
+	/**
+	 * The reader returned a verdict without actually reading the asset (see
+	 * `AndroidC2paReaderDataSource`), so any hash failure it reports says nothing about the content.
+	 */
+	val verificationIncomplete: Boolean = false,
 ) {
 	val activeManifest: C2paManifest? =
 		manifests.firstOrNull { it.id == activeManifestId } ?: manifests.firstOrNull()
@@ -48,6 +53,21 @@ data class C2paManifestData(
 	/** Failure-category issues affecting the active manifest's integrity (not mere trust). */
 	val integrityFailures: List<ValidationIssue>
 		get() = validationIssues.filter { it.category == ValidationCategory.FAILURE && it.isIntegrityFailure }
+
+	/**
+	 * True when the manifest's only integrity problems are hard-binding hash mismatches. Trust
+	 * failures (an untrusted signer) are not integrity failures and are deliberately ignored here:
+	 * they say nothing about whether the content was altered.
+	 */
+	val onlyHashFailures: Boolean
+		get() = integrityFailures.isNotEmpty() && integrityFailures.all { it.code in HASH_MISMATCH_CODES }
+
+	/**
+	 * True when a reported hash failure cannot be believed because the reader never actually read
+	 * the asset. See [verificationIncomplete].
+	 */
+	val hashFailuresAreUnreliable: Boolean
+		get() = verificationIncomplete && onlyHashFailures
 
 	/** True when c2pa reported the signer's certificate is not on the configured trust list. */
 	val signerUntrusted: Boolean
@@ -110,6 +130,13 @@ data class C2paIngredient(
 	val activeManifest: String? = null,
 )
 
+/** Hard-binding hash mismatch codes: the content did not match its claim. */
+internal val HASH_MISMATCH_CODES = setOf(
+	"assertion.dataHash.mismatch",
+	"assertion.bmffHash.mismatch",
+	"assertion.boxesHash.mismatch",
+)
+
 enum class ValidationCategory { SUCCESS, INFORMATIONAL, FAILURE, UNKNOWN }
 
 data class ValidationIssue(
@@ -126,6 +153,7 @@ data class ValidationIssue(
 		val INTEGRITY_FAILURE_CODES = listOf(
 			"claimSignature.mismatch",
 			"assertion.dataHash.mismatch",
+			"assertion.bmffHash.mismatch",
 			"assertion.boxesHash.mismatch",
 			// The hard binding BMFF assets carry (video, and the BMFF still formats).
 			"assertion.bmffHash.mismatch",

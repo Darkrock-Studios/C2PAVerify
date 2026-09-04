@@ -89,6 +89,34 @@ class AssetWindowTest {
 		assertEquals(0, window.read(ByteArray(8), 8))
 	}
 
+	@Test
+	fun `bytesRead accumulates only what was actually served`() {
+		val window = windowOver(ByteArray(64) { it.toByte() })
+
+		assertEquals(0L, window.bytesRead)
+		window.readBytes(10)
+		assertEquals(10L, window.bytesRead)
+		window.readBytes(6)
+		assertEquals(16L, window.bytesRead)
+	}
+
+	@Test
+	fun `bytesRead does not count seeking or reads past the end`() {
+		val window = windowOver(ByteArray(16))
+
+		window.seek(0L, SeekMode.END)
+		window.readBytes(8)
+		assertEquals("a read past the end serves nothing", 0L, window.bytesRead)
+	}
+
+	@Test
+	fun `bytesRead does not count a failed read`() {
+		val window = AssetWindow(start = 0L, length = 16L) { _, _, _ -> 0 }
+
+		window.read(ByteArray(8), 8)
+		assertEquals(0L, window.bytesRead)
+	}
+
 	private fun windowOver(
 		bytes: ByteArray,
 		start: Int = 0,

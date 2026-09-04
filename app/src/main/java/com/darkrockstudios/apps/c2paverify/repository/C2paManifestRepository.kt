@@ -26,7 +26,7 @@ class C2paManifestRepository(
 		when (val raw = reader.read(image, trust)) {
 			is C2paRawRead.NoManifest -> ManifestResult.NoManifest
 			is C2paRawRead.Manifest -> ManifestResult.Present(
-				parser.parse(raw.manifestJson, raw.detailedJson),
+				parser.parse(raw.manifestJson, raw.detailedJson, raw.verificationIncomplete),
 			)
 		}
 }

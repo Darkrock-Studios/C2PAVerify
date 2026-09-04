@@ -28,6 +28,10 @@
     <string name="status_trusted">Signed &amp; trusted</string>
     <string name="status_untrusted">Signed — untrusted signer</string>
     <string name="status_tampered">Invalid / tampered</string>
+    <!-- BMFF_INDEXED_XPATH: remove with the indexed-xpath workaround. -->
+    <string name="status_unverifiable">Signature OK: integrity unchecked</string>
+    <string name="status_unverifiable_body">This asset\'s signature is valid, but it uses a hash format the bundled C2PA library cannot evaluate yet, so we could not confirm the content is unmodified.</string>
+    <string name="status_unverifiable_too_large">This asset\'s signature is valid, but it is too large for this device to hash, so we could not confirm the content is unmodified.</string>
     <string name="status_no_manifest_body">This photo has no embedded C2PA / Content Authenticity data.</string>
     <string name="summary_signer">Signed by %1$s</string>
     <string name="summary_generator">Created with %1$s</string>
