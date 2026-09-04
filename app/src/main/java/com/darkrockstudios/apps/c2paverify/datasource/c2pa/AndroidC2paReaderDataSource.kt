@@ -61,7 +61,7 @@ class AndroidC2paReaderDataSource(private val context: Context) : C2paReaderData
 				source.readFailure?.let {
 					throw C2paReadException("Reading the file failed part way through", it)
 				}
-				read
+				source.markCoverage(read)
 			}
 		}
 
@@ -135,7 +135,7 @@ class AndroidC2paReaderDataSource(private val context: Context) : C2paReaderData
 		val input = ParcelFileDescriptor.AutoCloseInputStream(descriptor)
 		return try {
 			val channel = input.channel
-			val stream = AssetStream(backing = input)
+			val stream = AssetStream(backing = input, assetSize = size)
 			val window = AssetWindow(start = 0L, length = size) { buffer, count, position ->
 				runCatching { channel.read(ByteBuffer.wrap(buffer, 0, count), position) }
 					.onFailure {
@@ -144,7 +144,10 @@ class AndroidC2paReaderDataSource(private val context: Context) : C2paReaderData
 					}
 					.getOrDefault(0)
 			}
-			stream.also { it.stream = CallbackStream(reader = window::read, seeker = window::seek) }
+			stream.also {
+				it.window = window
+				it.stream = CallbackStream(reader = window::read, seeker = window::seek)
+			}
 		} catch (e: Exception) {
 			input.close()
 			throw C2paReadException("Unable to read $uriString", e)
@@ -155,9 +158,16 @@ class AndroidC2paReaderDataSource(private val context: Context) : C2paReaderData
 	 * A reader [stream] together with the platform handle it reads through, so both are released by
 	 * one [close] whether the reader finished or threw.
 	 */
-	private class AssetStream(private val backing: Closeable?, stream: Stream? = null) : Closeable {
+	private class AssetStream(
+		private val backing: Closeable?,
+		stream: Stream? = null,
+		private val assetSize: Long = -1L,
+	) : Closeable {
 
 		lateinit var stream: Stream
+
+		/** Set for a windowed source, so how much of the asset was served can be checked afterwards. */
+		var window: AssetWindow? = null
 
 		/** Set when the platform failed to serve a read, so a short read is not read as the file's end. */
 		@Volatile
@@ -165,6 +175,26 @@ class AndroidC2paReaderDataSource(private val context: Context) : C2paReaderData
 
 		init {
 			stream?.let { this.stream = it }
+		}
+
+		/**
+		 * Flags a verdict the reader reached without actually reading the asset.
+		 *
+		 * c2pa-android's JNI glue allocates a ByteArray the size of whatever the core asks for, and
+		 * the core asks for a whole contiguous hash range at once. For a large video that throws
+		 * OutOfMemoryError inside the native call, the glue swallows it, and the failed read comes
+		 * back as `assertion.bmffHash.mismatch`. Unlike [readFailure], nothing reaches our read
+		 * callback at all, so the only evidence is how little was served.
+		 * Tracked upstream as contentauth/c2pa-android#133.
+		 */
+		fun markCoverage(read: C2paRawRead): C2paRawRead {
+			val served = window?.bytesRead ?: return read
+			if (read !is C2paRawRead.Manifest || assetSize <= 0) return read
+			val incomplete = served < assetSize / MIN_READ_COVERAGE_DIVISOR
+			if (incomplete) {
+				Napier.w(tag = TAG) { "Read $served of $assetSize bytes; hash results are not trustworthy" }
+			}
+			return read.copy(verificationIncomplete = incomplete)
 		}
 
 		override fun close() {
@@ -190,6 +220,12 @@ class AndroidC2paReaderDataSource(private val context: Context) : C2paReaderData
 
 	private companion object {
 		const val TAG = "C2paReader"
+
+		/**
+		 * A real verification reads all but the excluded boxes. Half the asset is a deliberately
+		 * loose floor: well above any plausible exclusion set, well below a genuine full read.
+		 */
+		const val MIN_READ_COVERAGE_DIVISOR = 2
 	}
 }
 

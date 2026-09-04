@@ -193,7 +193,9 @@ private fun SignatureSection(
 	// Effective trust (reflects any user allow/deny override), from the computed verdict.
 	val trust = when (status) {
 		OverallStatus.SIGNED_TRUSTED -> stringResource(R.string.trust_trusted)
-		OverallStatus.SIGNED_UNTRUSTED, OverallStatus.TAMPERED_INVALID -> stringResource(R.string.trust_untrusted)
+		// BMFF_INDEXED_XPATH: UNVERIFIABLE joins the untrusted bucket; we cannot vouch for it.
+		OverallStatus.SIGNED_UNTRUSTED, OverallStatus.TAMPERED_INVALID, OverallStatus.UNVERIFIABLE ->
+			stringResource(R.string.trust_untrusted)
 		OverallStatus.NO_MANIFEST -> stringResource(R.string.trust_unknown)
 	}
 	SectionCard(stringResource(R.string.section_signature), Icons.Filled.Lock) {

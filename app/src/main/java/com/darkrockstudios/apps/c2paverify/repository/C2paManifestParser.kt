@@ -24,7 +24,11 @@ import kotlinx.serialization.json.jsonPrimitive
  */
 class C2paManifestParser(private val json: Json) {
 
-	fun parse(manifestJson: String, detailedJson: String? = null): C2paManifestData {
+	fun parse(
+		manifestJson: String,
+		detailedJson: String? = null,
+		verificationIncomplete: Boolean = false,
+	): C2paManifestData {
 		val root = json.parseToJsonElement(manifestJson).jsonObject
 
 		val activeId = root.string("active_manifest")
@@ -45,6 +49,7 @@ class C2paManifestParser(private val json: Json) {
 			validationIssues = parseValidationIssues(root),
 			rawManifestJson = manifestJson,
 			rawDetailedJson = detailedJson,
+			verificationIncomplete = verificationIncomplete,
 		)
 	}
 

@@ -16,6 +16,29 @@ enum class OverallStatus {
 
 	/** Manifest present but failed integrity/signature validation. */
 	TAMPERED_INVALID,
+
+	/**
+	 * BMFF_INDEXED_XPATH: manifest present and its signature is fine, but the bundled c2pa library
+	 * cannot evaluate this asset's hash exclusions, so integrity is unknown: neither verified nor
+	 * tampered. See `model/c2pa/BmffIndexedXpathWorkaround.kt`; remove with that workaround.
+	 */
+	UNVERIFIABLE,
+}
+
+/** Why integrity could not be checked, when [OverallStatus.UNVERIFIABLE] is the verdict. */
+enum class UnverifiableReason {
+	/**
+	 * BMFF_INDEXED_XPATH: the asset's hash assertion uses exclusion syntax the bundled c2pa library
+	 * cannot evaluate, so its mismatch verdict is meaningless.
+	 */
+	HASH_FORMAT_UNSUPPORTED,
+
+	/**
+	 * The asset is too large for the bundled c2pa library to hash on this device: its JNI layer
+	 * allocates a buffer the size of the whole hash range, runs out of heap, and reports the failed
+	 * read as a hash mismatch. Tracked as contentauth/c2pa-android#133.
+	 */
+	ASSET_TOO_LARGE,
 }
 
 /** Whether the asset declares AI involvement, derived from `digitalSourceType` assertions. */
@@ -89,6 +112,8 @@ data class C2paSummary(
 	val edited: EditedIndicator = EditedIndicator(isEdited = false, actions = emptyList()),
 	/** The signer's certificate was reported revoked (via a stapled OCSP response). */
 	val revoked: Boolean = false,
+	/** Set when [status] is [OverallStatus.UNVERIFIABLE], explaining why the check could not run. */
+	val unverifiableReason: UnverifiableReason? = null,
 ) {
 	val manifestPresent: Boolean get() = status != OverallStatus.NO_MANIFEST
 }

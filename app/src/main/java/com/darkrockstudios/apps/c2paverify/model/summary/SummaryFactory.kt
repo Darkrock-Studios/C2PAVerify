@@ -2,6 +2,7 @@ package com.darkrockstudios.apps.c2paverify.model.summary
 
 import com.darkrockstudios.apps.c2paverify.model.c2pa.C2paManifestData
 import com.darkrockstudios.apps.c2paverify.model.c2pa.ManifestValidationState
+import com.darkrockstudios.apps.c2paverify.model.c2pa.hasSpuriousBmffHashFailure
 import com.darkrockstudios.apps.c2paverify.model.trust.TrustLevel
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
@@ -32,9 +33,20 @@ object SummaryFactory {
 		}
 
 		val active = manifest.activeManifest
+		// A hash verdict we have reason to disbelieve. Never upgrades anything to trusted: it only
+		// stops us calling an asset tampered when we could not actually check it.
+		// Order matters: if the asset was never read, nothing was hashed, so that is the honest
+		// diagnosis even when its hash assertion ALSO uses exclusion syntax we cannot evaluate.
+		val unverifiable = when {
+			manifest.hashFailuresAreUnreliable -> UnverifiableReason.ASSET_TOO_LARGE
+			// BMFF_INDEXED_XPATH: drop this branch once c2pa-rs#2434 ships.
+			manifest.hasSpuriousBmffHashFailure -> UnverifiableReason.HASH_FORMAT_UNSUPPORTED
+			else -> null
+		}
 		val status = when {
 			manifest.validationState == ManifestValidationState.INVALID ||
-				manifest.integrityFailures.isNotEmpty() -> OverallStatus.TAMPERED_INVALID
+				manifest.integrityFailures.isNotEmpty() ->
+				if (unverifiable != null) OverallStatus.UNVERIFIABLE else OverallStatus.TAMPERED_INVALID
 
 			trust == TrustLevel.TRUSTED -> OverallStatus.SIGNED_TRUSTED
 			else -> OverallStatus.SIGNED_UNTRUSTED
@@ -53,6 +65,7 @@ object SummaryFactory {
 			enhanced = detectEnhanced(manifest),
 			edited = detectEdited(manifest),
 			revoked = manifest.signerRevoked,
+			unverifiableReason = unverifiable.takeIf { status == OverallStatus.UNVERIFIABLE },
 		)
 	}
 

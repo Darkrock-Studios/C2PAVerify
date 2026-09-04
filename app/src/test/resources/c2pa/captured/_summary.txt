@@ -3,3 +3,8 @@ valid-multi-CAICAI.jpg -> Manifest (json=17126 chars, detailed=19869)
 invalid-sig.jpg -> Manifest (json=6416 chars, detailed=7086)
 tampered-dat.jpg -> Manifest (json=7078 chars, detailed=7669)
 no-manifest.jpg -> NoManifest
+
+pixel-video-bmff.{manifest,detailed}.json -> hand-built, NOT device-captured. Mirrors a Pixel
+  video's c2pa.hash.bmff.v3 assertion (exclusions decoded from a real PXL_*.mp4, including the
+  indexed `/moov[1]/trak[3]` xpath) plus the bmffHash.mismatch that released c2pa-rs wrongly
+  reports for it. Delete with the BMFF_INDEXED_XPATH workaround.

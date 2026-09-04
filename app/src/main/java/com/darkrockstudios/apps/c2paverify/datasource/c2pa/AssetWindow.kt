@@ -22,6 +22,16 @@ internal class AssetWindow(
 	private var position: Long = 0
 
 	/**
+	 * Total bytes actually handed to the reader.
+	 *
+	 * A hard binding covers everything but a few excluded boxes, so a genuine verification reads
+	 * nearly the whole window. Far less than that means the reader gave a verdict without looking
+	 * at the asset, which is what happens when the native layer cannot allocate its read buffer.
+	 */
+	var bytesRead: Long = 0L
+		private set
+
+	/**
 	 * Reads up to [maxLength] bytes into [buffer], returning the count and 0 at the end of the
 	 * window.
 	 *
@@ -37,6 +47,7 @@ internal class AssetWindow(
 		val read = readAt(buffer, wanted, start + position)
 		if (read <= 0) return 0
 		position += read
+		bytesRead += read
 		return read
 	}
 

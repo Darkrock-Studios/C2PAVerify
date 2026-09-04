@@ -30,11 +30,15 @@ sealed interface C2paRawRead {
 	 * A manifest store is present. [manifestJson] is `reader.json()`, [detailedJson] is
 	 * `reader.detailedJson()` (heavier; may be null if not requested), and [certChainDer] is the
 	 * signer's X.509 chain in DER form (may be empty if the library didn't expose it).
+	 *
+	 * [verificationIncomplete] means the reader reported a verdict without actually reading the
+	 * asset, so any hash failure it reports is meaningless. See `AndroidC2paReaderDataSource`.
 	 */
 	data class Manifest(
 		val manifestJson: String,
 		val detailedJson: String?,
 		val certChainDer: List<ByteArray>,
+		val verificationIncomplete: Boolean = false,
 	) : C2paRawRead
 }
 
